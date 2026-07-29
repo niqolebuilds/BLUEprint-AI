@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include('Stylesheet'); ?>
+</head>
+<body>
+
+  <div id="loginView">
+    <div class="login-card">
+      <h1>Blueprint</h1>
+      <p class="subtitle">Finance Process Catalogue — sign in</p>
+      <form id="loginForm">
+        <label>Username</label>
+        <input id="username" name="username" autocomplete="username" required>
+        <label>Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button id="loginBtn" type="submit" class="full-width">Sign in</button>
+        <div id="loginError" class="error-text"></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="appView" class="hidden">
+    <div class="topbar">
+      <div>
+        <h1>Blueprint <span class="badge" id="roleBadge"></span></h1>
+        <div class="who" id="whoami"></div>
+      </div>
+      <button id="logoutBtn" class="secondary">Sign out</button>
+    </div>
+    <div id="dashboardRoot"></div>
+  </div>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
