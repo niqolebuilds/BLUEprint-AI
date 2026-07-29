@@ -94,6 +94,11 @@ function updateRow_(sheet, headers, rowNumber, obj) {
 
 function isActive_(u) { return u.Active !== false && u.Active !== 'FALSE'; }
 
+/** google.script.run's client bridge can silently fail (success handler gets
+ * null) when a raw Date object is nested in the returned payload — always
+ * cross that boundary as a string. */
+function toIso_(v) { return v instanceof Date ? v.toISOString() : (v || ''); }
+
 function logAudit_(username, action, details) {
   appendRow_(auditSheet_(), AUDIT_HEADERS, { Timestamp: new Date(), Username: username, Action: action, Details: details || '' });
 }
@@ -350,7 +355,7 @@ function buildPersonalDashboard_(payload) {
     : 0;
   return {
     processes: processes.map(function (p) {
-      return { id: p.Id, title: p.Title, status: p.Status, completeness: Number(p.CompletenessScore) || 0, suitability: Number(p.AutomationSuitability) || 0, lastUpdated: p.LastUpdated, subFunction: p.SubFunction };
+      return { id: p.Id, title: p.Title, status: p.Status, completeness: Number(p.CompletenessScore) || 0, suitability: Number(p.AutomationSuitability) || 0, lastUpdated: toIso_(p.LastUpdated), subFunction: p.SubFunction };
     }),
     summary: { count: processes.length, avgCompleteness: avgCompleteness, classificationMix: mix }
   };
@@ -358,7 +363,7 @@ function buildPersonalDashboard_(payload) {
 
 function buildAdminDashboard_() {
   var users = readAll_(usersSheet_(), USERS_HEADERS).map(function (u) {
-    return { username: u.Username, name: u.Name, email: u.Email, level: u.Level, subFunction: u.SubFunction, active: isActive_(u), lastLogin: u.LastLogin };
+    return { username: u.Username, name: u.Name, email: u.Email, level: u.Level, subFunction: u.SubFunction, active: isActive_(u), lastLogin: toIso_(u.LastLogin) };
   });
   var processes = readAll_(processesSheet_(), PROCESSES_HEADERS);
 
