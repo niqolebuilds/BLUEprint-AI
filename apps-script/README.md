@@ -1,9 +1,12 @@
 # Blueprint — Google Sheets + Apps Script deployment
 
-This connects a role-scoped Blueprint dashboard (L1, L2, L3, L4, Admin) to
-Google Sheet [`1BU6Pnw97OWJi0HbUj2pfCsyD8Hf24QJcWYQcVKmu7cXQht3iDVjTmP97`](https://docs.google.com/spreadsheets/d/1BU6Pnw97OWJi0HbUj2pfCsyD8Hf24QJcWYQcVKmu7cXQht3iDVjTmP97/edit)
-via a standalone Apps Script web app. It is independent of the React app in
-this repo — the Sheet is the database, Apps Script is the backend and the UI.
+This connects a role-scoped Blueprint dashboard (L1, L2, L3, L4, Admin) to a
+Google Sheet via an Apps Script web app **bound directly to that Sheet**
+(the script reads `SpreadsheetApp.getActiveSpreadsheet()` — there's no
+spreadsheet ID to configure; it just uses whichever Sheet you attach it to
+via that Sheet's own **Extensions → Apps Script** menu). It is independent
+of the React app in this repo — the Sheet is the database, Apps Script is
+the backend and the UI.
 
 ## What gets created
 

@@ -1,15 +1,14 @@
 /**
  * Blueprint — Process Catalogue: Google Sheets + Apps Script backend.
  *
- * Bound to spreadsheet 1BU6Pnw97OWJi0HbUj2pfCsyD8Hf24QJcWYQcVKmu7cXQht3iDVjTmP97.
- * Serves a single-page web app (Index.html) with role-scoped views for
- * L1, L2, L3, L4 and Admin, backed entirely by three sheets this script
- * manages: Users, Processes, AuditLog.
+ * Bound directly to a spreadsheet (attach via that Sheet's Extensions >
+ * Apps Script menu, not as a standalone script). Serves a single-page web
+ * app (Index.html) with role-scoped views for L1, L2, L3, L4 and Admin,
+ * backed entirely by three sheets this script manages: Users, Processes,
+ * AuditLog.
  *
  * See apps-script/README.md for the one-time setup and deployment steps.
  */
-
-var SPREADSHEET_ID = '1BU6Pnw97OWJi0HbUj2pfCsyD8Hf24QJcWYQcVKmu7cXQht3iDVjTmP97';
 
 var SHEET_USERS = 'Users';
 var SHEET_PROCESSES = 'Processes';
@@ -38,8 +37,11 @@ function include(filename) {
 
 /* ============================ Sheet plumbing =========================== */
 
+/** Uses the spreadsheet this script is bound to — no hardcoded ID needed. */
 function ss_() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
+  var active = SpreadsheetApp.getActiveSpreadsheet();
+  if (!active) throw new Error('This script must be attached to a spreadsheet (Extensions > Apps Script from within the Sheet).');
+  return active;
 }
 
 function getOrCreateSheet_(name, headers) {
