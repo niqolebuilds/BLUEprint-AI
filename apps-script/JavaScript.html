@@ -10,21 +10,41 @@
 
   var state = { token: null, user: null };
 
-  document.addEventListener('DOMContentLoaded', function () {
-    document.getElementById('loginForm').addEventListener('submit', onLoginSubmit);
-    document.getElementById('logoutBtn').addEventListener('click', logout);
-
-    var saved = sessionStorage.getItem('bp_session');
-    if (saved) {
-      try {
-        var parsed = JSON.parse(saved);
-        state.token = parsed.token;
-        state.user = parsed.user;
-        showApp();
-        return;
-      } catch (e) { sessionStorage.removeItem('bp_session'); }
+  /* Surfaces real errors on the page itself — DevTools on an Apps Script
+     page is mostly Google's own minified sandbox/telemetry noise, so a
+     visible banner is far more reliable for diagnosing this app's bugs. */
+  function showFatalError(err) {
+    var msg = (err && err.message) ? err.message : String(err);
+    var stack = (err && err.stack) ? err.stack : '';
+    var el = document.getElementById('fatalBanner');
+    if (el) {
+      el.textContent = 'App error: ' + msg + (stack ? '\n' + stack : '');
+      el.classList.remove('hidden');
     }
-    showLogin();
+  }
+
+  window.addEventListener('error', function (e) { showFatalError(e.error || e.message); });
+  window.addEventListener('unhandledrejection', function (e) { showFatalError(e.reason); });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    try {
+      document.getElementById('loginForm').addEventListener('submit', onLoginSubmit);
+      document.getElementById('logoutBtn').addEventListener('click', logout);
+
+      var saved = sessionStorage.getItem('bp_session');
+      if (saved) {
+        try {
+          var parsed = JSON.parse(saved);
+          state.token = parsed.token;
+          state.user = parsed.user;
+          showApp();
+          return;
+        } catch (e) { sessionStorage.removeItem('bp_session'); }
+      }
+      showLogin();
+    } catch (err) {
+      showFatalError(err);
+    }
   });
 
   function showLogin() {
@@ -33,11 +53,15 @@
   }
 
   function showApp() {
-    document.getElementById('loginView').classList.add('hidden');
-    document.getElementById('appView').classList.remove('hidden');
-    document.getElementById('whoami').textContent = state.user.name + ' · ' + state.user.subFunction;
-    document.getElementById('roleBadge').textContent = state.user.level;
-    loadDashboard();
+    try {
+      document.getElementById('loginView').classList.add('hidden');
+      document.getElementById('appView').classList.remove('hidden');
+      document.getElementById('whoami').textContent = state.user.name + ' · ' + state.user.subFunction;
+      document.getElementById('roleBadge').textContent = state.user.level;
+      loadDashboard();
+    } catch (err) {
+      showFatalError(err);
+    }
   }
 
   function onLoginSubmit(evt) {
@@ -79,8 +103,8 @@
   }
 
   function onServerError(err) {
-    toast(err.message || 'Something went wrong.', true);
-    if (/session/i.test(err.message || '')) logout();
+    showFatalError(err);
+    if (/session/i.test((err && err.message) || '')) logout();
   }
 
   function loadDashboard() {
@@ -107,12 +131,16 @@
   /* ---------------------------- Dashboard router ---------------------------- */
 
   function renderDashboard(res) {
-    var root = document.getElementById('dashboardRoot');
-    if (res.view === 'admin') root.innerHTML = renderAdmin(res.data);
-    else if (res.view === 'directorate') root.innerHTML = renderDirectorate(res.data);
-    else if (res.view === 'team') root.innerHTML = renderTeam(res.data);
-    else root.innerHTML = renderPersonal(res.data);
-    wireDashboardEvents(res.view);
+    try {
+      var root = document.getElementById('dashboardRoot');
+      if (res.view === 'admin') root.innerHTML = renderAdmin(res.data);
+      else if (res.view === 'directorate') root.innerHTML = renderDirectorate(res.data);
+      else if (res.view === 'team') root.innerHTML = renderTeam(res.data);
+      else root.innerHTML = renderPersonal(res.data);
+      wireDashboardEvents(res.view);
+    } catch (err) {
+      showFatalError(err);
+    }
   }
 
   function renderDirectorate(d) {
