@@ -65,10 +65,41 @@ npm run build      # production build (vite + esbuild server bundle)
 npm run start      # serve the production build
 ```
 
+## Deploy the UI to Vercel + connect the Google Sheet backend
+
+This repo also ships `apps-script/` — a Google Apps Script backend (see
+`apps-script/README.md` for its own setup) that can back this app with a real,
+admin-managed Google Sheet instead of `localStorage`. To connect the two:
+
+1. Deploy `apps-script/` following `apps-script/README.md`, and copy its web
+   app `/exec` URL.
+2. Import this repo into Vercel (`vercel.json` here just pins the build to
+   `vite build` with output `dist` — no other config needed).
+3. In Vercel → Project Settings → Environment Variables, add
+   `VITE_APPS_SCRIPT_URL` set to that `/exec` URL, then redeploy.
+
+With that variable set, the app's own **Onboarding/LockScreen local-profile
+flow is replaced** by a real sign-in screen (`RemoteLogin`) against the
+Sheet's `Users` — accounts are provisioned by an Admin from the Sheet's
+**Blueprint Admin** menu or the Admin dashboard, not self-declared during
+onboarding. Newly captured processes are also best-effort synced to the
+Sheet's `Processes` tab (a one-time snapshot at creation — the Apps Script
+API doesn't yet support updating that row on later edits) so an Admin gets
+directorate-wide roll-up visibility without opening every user's browser.
+
+Leave `VITE_APPS_SCRIPT_URL` unset and the app behaves exactly as it does
+today — fully local, no Sheet involved.
+
+**Known limitation:** the AI mining/refinement engine (`/api/ai/mine`,
+`/api/ai/analyze` below) runs on the Express server in `server.ts`, which a
+static Vercel deploy does not run — those endpoints will 404 on Vercel as
+configured here. Porting them to Vercel serverless functions is a separate,
+larger piece of work than the Sheets integration and hasn't been done yet.
+
 ## Notes
 
 - All data is local-first: processes, systems and your profile persist in
   `localStorage`; the capture journey autosaves a draft so interruptions never
-  lose work.
+  lose work. This changes only when `VITE_APPS_SCRIPT_URL` is set (see above).
 - The rail's **View as** switcher is a demo affordance to preview every
   role's scoped experience without re-onboarding.
