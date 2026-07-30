@@ -35,6 +35,48 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+/**
+ * JSON API for external callers (e.g. the React app deployed separately on
+ * Vercel) that can't use google.script.run. Send POST requests with
+ * Content-Type: text/plain;charset=utf-8 (NOT application/json — a JSON
+ * content-type triggers a CORS preflight OPTIONS request, which Apps Script
+ * web apps cannot answer) and a JSON-encoded body of the form:
+ *   { "action": "getDashboard", "token": "...", "payload": { ... } }
+ * Every action reuses the exact same apiXxx_ functions the bundled Sheets
+ * dashboard calls via google.script.run, so both frontends share one
+ * implementation of auth and row-level filtering.
+ */
+function doPost(e) {
+  try {
+    var body = JSON.parse(e.postData.contents);
+    var data = routeAction_(body.action, body.token, body.payload);
+    return jsonResponse_({ ok: true, data: data });
+  } catch (err) {
+    return jsonResponse_({ ok: false, error: err.message });
+  }
+}
+
+function jsonResponse_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function routeAction_(action, token, payload) {
+  payload = payload || {};
+  switch (action) {
+    case 'login': return apiLogin(payload.username, payload.password);
+    case 'changePassword': return apiChangePassword(token, payload.oldPassword, payload.newPassword);
+    case 'getDashboard': return apiGetDashboard(token);
+    case 'submitProcess': return apiSubmitProcess(token, payload);
+    case 'updateProcess': return apiUpdateProcess(token, payload.id, payload.patch || {});
+    case 'deleteProcess': return apiDeleteProcess(token, payload.id);
+    case 'adminCreateUser': return apiAdminCreateUser(token, payload);
+    case 'adminResetPassword': return apiAdminResetPassword(token, payload.username);
+    case 'adminSetActive': return apiAdminSetActive(token, payload.username, payload.active);
+    case 'adminExportCsv': return apiAdminExportCsv(token);
+    default: throw new Error('Unknown action: ' + action);
+  }
+}
+
 /* ============================ Sheet plumbing =========================== */
 
 /** Uses the spreadsheet this script is bound to — no hardcoded ID needed. */

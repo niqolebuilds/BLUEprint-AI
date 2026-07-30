@@ -132,7 +132,7 @@ export interface UserProfile {
   manualRoleOverride?: string; // Dedicated role field for raw manual user input (bypassing AI/validation)
 }
 
-export type AppPhase = 'landing' | 'onboarding' | 'locked' | 'journey' | 'workspace';
+export type AppPhase = 'landing' | 'onboarding' | 'locked' | 'journey' | 'workspace' | 'remoteLogin';
 
 /**
  * A process being reviewed/edited inside the capture journey. One AI mining run

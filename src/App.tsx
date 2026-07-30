@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import LandingPage from './components/LandingPage';
 import Onboarding from './components/Onboarding';
 import LockScreen from './components/LockScreen';
+import RemoteLogin from './components/RemoteLogin';
 import CaptureJourney from './components/journey/CaptureJourney';
 import Workspace from './components/Workspace';
+import { isRemoteEnabled, mapProcessToRemoteInput, submitRemoteProcess, RemoteUser } from './lib/blueprintApi';
 
 import {
   AppPhase,
@@ -44,6 +46,7 @@ const STORAGE = {
   processes: 'bp_processes',
   systems: 'bp_systems',
   unlocked: 'bp_unlocked', // sessionStorage — cleared when the browser tab closes
+  remoteToken: 'bp_remote_token', // sessionStorage — Apps Script session, only used when VITE_APPS_SCRIPT_URL is set
   projects: 'bp_projects',
   teamMembers: 'bp_team_members',
   transcripts: 'bp_transcripts',
@@ -75,6 +78,11 @@ export default function App() {
   });
 
   const [phase, setPhase] = useState<AppPhase>(() => {
+    if (isRemoteEnabled()) {
+      if (!sessionStorage.getItem(STORAGE.remoteToken)) return 'remoteLogin';
+      const savedPhase = localStorage.getItem(STORAGE.phase);
+      return savedPhase === 'journey' || savedPhase === 'workspace' ? savedPhase : 'journey';
+    }
     const saved = loadJSON<UserProfile | null>(STORAGE.profile, null);
     if (!saved) return 'landing';
     if (sessionStorage.getItem(STORAGE.unlocked) !== 'true') return 'locked';
@@ -159,6 +167,21 @@ export default function App() {
   }, [phase]);
 
   // ---------- Phase transitions ----------
+  const handleRemoteSignedIn = (token: string, user: RemoteUser) => {
+    sessionStorage.setItem(STORAGE.remoteToken, token);
+    const newProfile: UserProfile = {
+      name: user.name,
+      role: user.level,
+      passwordHash: '',
+      createdAt: new Date().toISOString(),
+    };
+    localStorage.setItem(STORAGE.profile, JSON.stringify(newProfile));
+    sessionStorage.setItem(STORAGE.unlocked, 'true');
+    setProfile(newProfile);
+    setCurrentPersona(newProfile.role);
+    setPhase('journey');
+  };
+
   const handleOnboardingComplete = (newProfile: UserProfile) => {
     localStorage.setItem(STORAGE.profile, JSON.stringify(newProfile));
     sessionStorage.setItem(STORAGE.unlocked, 'true');
@@ -181,19 +204,35 @@ export default function App() {
     localStorage.removeItem(STORAGE.profile);
     localStorage.removeItem(STORAGE.phase);
     sessionStorage.removeItem(STORAGE.unlocked);
+    sessionStorage.removeItem(STORAGE.remoteToken);
     setProfile(null);
-    setPhase('landing');
+    setPhase(isRemoteEnabled() ? 'remoteLogin' : 'landing');
   };
 
   const handleLock = () => {
     sessionStorage.removeItem(STORAGE.unlocked);
-    setPhase('locked');
+    if (isRemoteEnabled()) {
+      sessionStorage.removeItem(STORAGE.remoteToken);
+      setPhase('remoteLogin');
+    } else {
+      setPhase('locked');
+    }
   };
 
   // ---------- Process actions ----------
   const handleSaveProcess = (newProcess: Process) => {
     setProcesses((prev) => {
       const exists = prev.some((p) => p.id === newProcess.id);
+      if (!exists && isRemoteEnabled()) {
+        const token = sessionStorage.getItem(STORAGE.remoteToken);
+        if (token) {
+          // Best-effort snapshot into the Sheet for directorate roll-up visibility;
+          // never blocks or breaks the local-first save if the network call fails.
+          submitRemoteProcess(token, mapProcessToRemoteInput(newProcess)).catch((err) => {
+            console.warn('Blueprint: failed to sync process to Google Sheet', err);
+          });
+        }
+      }
       return exists ? prev.map((p) => (p.id === newProcess.id ? newProcess : p)) : [newProcess, ...prev];
     });
   };
@@ -454,6 +493,10 @@ export default function App() {
   };
 
   // ---------- Render current phase ----------
+  if (phase === 'remoteLogin') {
+    return <RemoteLogin onSignedIn={handleRemoteSignedIn} />;
+  }
+
   if (phase === 'landing') {
     return <LandingPage onStart={() => setPhase('onboarding')} />;
   }
@@ -537,5 +580,7 @@ export default function App() {
   }
 
   // Fallback — inconsistent persisted state, restart cleanly.
-  return <LandingPage onStart={() => setPhase('onboarding')} />;
+  return isRemoteEnabled()
+    ? <RemoteLogin onSignedIn={handleRemoteSignedIn} />
+    : <LandingPage onStart={() => setPhase('onboarding')} />;
 }
