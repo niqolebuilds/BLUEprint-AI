@@ -65,41 +65,58 @@ npm run build      # production build (vite + esbuild server bundle)
 npm run start      # serve the production build
 ```
 
-## Deploy the UI to Vercel + connect the Google Sheet backend
+## Deploy to Vercel + connect a Postgres backend
 
-This repo also ships `apps-script/` — a Google Apps Script backend (see
-`apps-script/README.md` for its own setup) that can back this app with a real,
-admin-managed Google Sheet instead of `localStorage`. To connect the two:
+The remote backend is a small Postgres-backed API (`api/blueprint.ts`, a
+Vercel serverless function; `api/_lib/{db,auth,actions}.ts` hold the actual
+logic) instead of `localStorage`. **Neon** (via Vercel's Storage tab) is the
+easiest way to get a free Postgres instance wired up with zero manual
+connection-string handling.
 
-1. Deploy `apps-script/` following `apps-script/README.md`, and copy its web
-   app `/exec` URL.
-2. Import this repo into Vercel (`vercel.json` here just pins the build to
-   `vite build` with output `dist` — no other config needed).
-3. In Vercel → Project Settings → Environment Variables, add
-   `VITE_APPS_SCRIPT_URL` set to that `/exec` URL, then redeploy.
+1. In your Vercel project → **Storage** → **Create Database** → **Neon** →
+   connect it to this project. Vercel automatically injects `DATABASE_URL`
+   into your deployments — nothing to copy by hand.
+2. Generate a random signing secret (e.g. `openssl rand -hex 32`) and add it
+   in **Project Settings → Environment Variables** as `AUTH_TOKEN_SECRET`.
+   This signs login sessions; it's unrelated to the database.
+3. Add one more environment variable: `VITE_ENABLE_REMOTE_AUTH` = `true`.
+4. Redeploy. The database tables (`users`, `processes`, `audit_log`) are
+   created automatically on first request — no migration step to run.
+5. Open the deployed site. You'll land on a sign-in screen; click **"First
+   time setting this up? Create the Admin account"**, enter your name and
+   email, and you'll get a username + one-time temporary password (shown
+   once — copy it). Sign in with those, and change your password from there.
+   That bootstrap path only works once, before any account exists — everyone
+   after you gets created from the Admin dashboard.
 
-With that variable set, the app's own **Onboarding/LockScreen local-profile
-flow is replaced** by a real sign-in screen (`RemoteLogin`) against the
-Sheet's `Users` — accounts are provisioned by an Admin from the Sheet's
-**Blueprint Admin** menu or the Admin dashboard, not self-declared during
-onboarding. Newly captured processes are also best-effort synced to the
-Sheet's `Processes` tab (a one-time snapshot at creation — the Apps Script
-API doesn't yet support updating that row on later edits) so an Admin gets
-directorate-wide roll-up visibility without opening every user's browser.
+Leave `VITE_ENABLE_REMOTE_AUTH` unset and the app behaves exactly as it does
+without a database: local Onboarding/LockScreen, `localStorage` only.
 
-Leave `VITE_APPS_SCRIPT_URL` unset and the app behaves exactly as it does
-today — fully local, no Sheet involved.
+Newly captured processes are best-effort synced to Postgres (a one-time
+snapshot at creation — the API doesn't yet support updating that row on
+later local edits) for directorate roll-up visibility via the dashboard API
+endpoints in `api/_lib/actions.ts` (not yet wired into the React app's own
+dashboard screens — those still read local state; wiring them up is a
+separate, larger change).
 
 **Known limitation:** the AI mining/refinement engine (`/api/ai/mine`,
-`/api/ai/analyze` below) runs on the Express server in `server.ts`, which a
-static Vercel deploy does not run — those endpoints will 404 on Vercel as
-configured here. Porting them to Vercel serverless functions is a separate,
-larger piece of work than the Sheets integration and hasn't been done yet.
+`/api/ai/analyze` below) still runs on the Express server in `server.ts`,
+which a static Vercel deploy does not run — those endpoints will 404 on
+Vercel as configured here. Porting them to Vercel serverless functions
+(like `api/blueprint.ts` now is) is a separate piece of work.
+
+### Previously: Google Sheets + Apps Script
+
+`apps-script/` (see `apps-script/README.md`) is an earlier, independent
+backend that used a Google Sheet instead of Postgres, with its own
+Sheets-native dashboard UI. It's superseded by the Postgres path above and
+no longer wired into this React app, but the code is left in place if you'd
+rather run that instead.
 
 ## Notes
 
 - All data is local-first: processes, systems and your profile persist in
   `localStorage`; the capture journey autosaves a draft so interruptions never
-  lose work. This changes only when `VITE_APPS_SCRIPT_URL` is set (see above).
+  lose work. This changes only when `VITE_ENABLE_REMOTE_AUTH` is set (see above).
 - The rail's **View as** switcher is a demo affordance to preview every
   role's scoped experience without re-onboarding.
