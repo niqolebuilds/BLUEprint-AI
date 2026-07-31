@@ -1,5 +1,5 @@
 import { NeonQueryFunction } from '@neondatabase/serverless';
-import { getSql } from './db';
+import { getSql } from './db.js';
 import {
   generateSalt,
   generateTempPassword,
@@ -10,7 +10,7 @@ import {
   requireAuth,
   verifyPassword,
   TokenPayload,
-} from './auth';
+} from './auth.js';
 
 type Sql = NeonQueryFunction<false, false>;
 

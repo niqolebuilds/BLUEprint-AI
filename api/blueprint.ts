@@ -1,4 +1,4 @@
-import { routeAction } from './_lib/actions';
+import { routeAction } from './_lib/actions.js';
 
 // Vercel injects a Node IncomingMessage/ServerResponse pair augmented with
 // .body/.query and .status()/.json() helpers; typed loosely to avoid pulling
