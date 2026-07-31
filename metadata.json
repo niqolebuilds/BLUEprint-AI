@@ -1,0 +1,8 @@
+{
+  "name": "AI Finance Blueprint",
+  "description": "An interactive digital blueprinting platform for hospital finance workflows, using Gemini-powered mining and analysis to design automated systems.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
