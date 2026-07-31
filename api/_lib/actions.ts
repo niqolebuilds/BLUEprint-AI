@@ -129,9 +129,18 @@ async function resetPassword(sql: Sql, username: string): Promise<string> {
 
 async function apiBootstrapAdmin(sql: Sql, name: string, email: string): Promise<{ username: string; tempPassword: string }> {
   if (!name || !email) throw new Error('Name and email are required.');
-  const countRows = await sql`SELECT count(*)::int AS n FROM users`;
-  if ((countRows[0]?.n ?? 0) > 0) throw new Error('An Admin account already exists — ask them to create your account instead.');
-  return createUser(sql, name, email, 'Admin', 'All');
+  const rows = await sql`SELECT username, last_login FROM users`;
+  if (rows.length === 0) {
+    return createUser(sql, name, email, 'Admin', 'All');
+  }
+  if (rows.length === 1 && rows[0].last_login === null) {
+    // Nobody has signed in yet — safe to reissue a fresh temp password for the
+    // same bootstrap account rather than permanently locking this out if the
+    // one-time password is lost before it's ever used.
+    const tempPassword = await resetPassword(sql, rows[0].username);
+    return { username: rows[0].username, tempPassword };
+  }
+  throw new Error('An Admin account already exists — ask them to create your account instead.');
 }
 
 async function apiLogin(sql: Sql, username: string, password: string) {
