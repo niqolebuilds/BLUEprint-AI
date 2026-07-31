@@ -46,7 +46,7 @@ const STORAGE = {
   processes: 'bp_processes',
   systems: 'bp_systems',
   unlocked: 'bp_unlocked', // sessionStorage — cleared when the browser tab closes
-  remoteToken: 'bp_remote_token', // sessionStorage — Apps Script session, only used when VITE_APPS_SCRIPT_URL is set
+  remoteToken: 'bp_remote_token', // sessionStorage — Postgres API session, only used when VITE_ENABLE_REMOTE_AUTH=true
   projects: 'bp_projects',
   teamMembers: 'bp_team_members',
   transcripts: 'bp_transcripts',

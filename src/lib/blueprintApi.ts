@@ -1,21 +1,18 @@
 /**
- * Client for the Apps Script JSON API (apps-script/Code.gs doPost).
+ * Client for the Postgres-backed API (api/blueprint.ts, same-origin on Vercel;
+ * proxied through /api/blueprint locally by server.ts for `npm run dev`).
  *
- * When VITE_APPS_SCRIPT_URL is unset, the app falls back to its original
+ * When VITE_ENABLE_REMOTE_AUTH is unset, the app falls back to its original
  * local-only mode (localStorage profile + Onboarding/LockScreen) — nothing
  * here is required for the app to run.
- *
- * Content-Type is deliberately text/plain, not application/json: a JSON
- * content-type triggers a CORS preflight (OPTIONS) request, which Apps
- * Script web apps cannot answer, so the request would be blocked entirely.
  */
 
 import { Process } from '../types';
 
-const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL as string | undefined;
+const REMOTE_AUTH_ENABLED = import.meta.env.VITE_ENABLE_REMOTE_AUTH === 'true';
 
 export function isRemoteEnabled(): boolean {
-  return !!APPS_SCRIPT_URL;
+  return REMOTE_AUTH_ENABLED;
 }
 
 export interface RemoteUser {
@@ -26,16 +23,20 @@ export interface RemoteUser {
 }
 
 async function callApi<T>(action: string, token?: string, payload?: unknown): Promise<T> {
-  if (!APPS_SCRIPT_URL) throw new Error('Apps Script backend is not configured (VITE_APPS_SCRIPT_URL is unset).');
-  const res = await fetch(APPS_SCRIPT_URL, {
+  const res = await fetch('/api/blueprint', {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, token, payload }),
   });
   if (!res.ok) throw new Error(`Backend request failed (HTTP ${res.status}).`);
   const json = await res.json();
   if (!json.ok) throw new Error(json.error || 'Backend request failed.');
   return json.data as T;
+}
+
+/** Only succeeds once — the first call with zero users in the database creates the Admin. */
+export function bootstrapAdmin(name: string, email: string) {
+  return callApi<{ username: string; tempPassword: string }>('bootstrapAdmin', undefined, { name, email });
 }
 
 export function remoteLogin(username: string, password: string) {
@@ -75,10 +76,10 @@ export function submitRemoteProcess(token: string, input: RemoteProcessInput) {
 }
 
 /**
- * apps-script/Code.gs only exposes create (no upsert-by-id), so this is a
- * one-time snapshot taken when a process is first saved locally — later
- * local edits are not re-synced to the Sheet. Good enough for directorate
- * roll-up visibility; not a live mirror of the local copy.
+ * The API only supports create (no upsert-by-id), so this is a one-time
+ * snapshot taken when a process is first saved locally — later local edits
+ * are not re-synced to Postgres. Good enough for directorate roll-up
+ * visibility; not a live mirror of the local copy.
  */
 export function mapProcessToRemoteInput(p: Process): RemoteProcessInput {
   const counts = { agentic: 0, automation: 0, human: 0 };

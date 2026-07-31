@@ -1089,6 +1089,18 @@ app.post('/api/ai/meeting-summary', async (req, res) => {
   });
 });
 
+// Postgres-backed auth/process API — shares api/_lib/actions.ts with the Vercel
+// serverless entry (api/blueprint.ts) so local dev and production run identical logic.
+app.post('/api/blueprint', async (req, res) => {
+  try {
+    const { routeAction } = await import('./api/_lib/actions');
+    const data = await routeAction(req.body?.action, req.body?.token, req.body?.payload);
+    res.json({ ok: true, data });
+  } catch (err) {
+    res.json({ ok: false, error: err instanceof Error ? err.message : 'Request failed.' });
+  }
+});
+
 // Configure Vite or Static Asset Serving
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
