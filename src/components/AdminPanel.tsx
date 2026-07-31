@@ -12,6 +12,8 @@ import { ImprovementItem, Process, SubFunction, SystemItem } from '../types';
 import { MOCK_USERS, SUBFUNCTIONS_LIST } from '../data/mockData';
 import { CHART_COLORS, classificationCounts } from '../lib/utils';
 import { Meter, Stat, AutoTextarea } from './ui';
+import { isRemoteEnabled } from '../lib/blueprintApi';
+import RemoteUserAdmin from './RemoteUserAdmin';
 
 const TOOLTIP_STYLE = {
   borderRadius: 14,
@@ -261,6 +263,8 @@ export default function AdminPanel({
           <Download size={15} /> Export dataset
         </button>
       </div>
+
+      {isRemoteEnabled() && <RemoteUserAdmin />}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Processes captured" value={processes.length} hint={`${classifiedSteps} classified steps`} accent="citron" />
