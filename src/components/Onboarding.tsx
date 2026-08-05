@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, Check, Crown, Landmark, ShieldCheck, UserRound, Users, Wrench } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Crown, Landmark, UserRound, Users, Wrench } from 'lucide-react';
 import { Persona, UserProfile } from '../types';
 import { hashPassword } from '../lib/utils';
 import { ProgressDots } from './ui';
 
+// Note: "Admin" (Programme admin) is intentionally NOT selectable here. Admin
+// status is reserved for Nicole and is auto-granted by name/email match in
+// finish() below — self-signup can never grant Admin access to anyone else.
 const ROLE_OPTIONS: Array<{ role: Persona; title: string; sub: string; body: string; icon: typeof Crown }> = [
   { role: 'L1', title: 'CFO', sub: 'L1 · Directorate leader', body: 'Full-directorate visibility, strategy and native-AI adoption.', icon: Crown },
   { role: 'L2', title: 'GM / Head / Advisor', sub: 'L2 · Subfunction leader', body: 'Plans the transformation for one subfunction.', icon: Landmark },
   { role: 'L3', title: 'Controller / Dept. head', sub: 'L3 · Unit manager', body: 'Manages people and tracks documentation completion.', icon: Users },
   { role: 'L4', title: 'Executive / Coordinator', sub: 'L4 · Process executor', body: 'Documents day-to-day working processes in detail.', icon: Wrench },
-  { role: 'Admin', title: 'Programme admin', sub: 'Project Vanguard lead', body: 'Runs the programme: data quality, hackathon list, next stage.', icon: ShieldCheck },
 ];
 
 const slide = {

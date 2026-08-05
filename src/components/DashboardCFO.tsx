@@ -10,10 +10,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { ArrowRight, ArrowUpRight, Award, Route, TrendingUp } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Award, Route, Target, TrendingUp } from 'lucide-react';
 import { ImprovementItem, ManagedProject, Persona, Process, ProjectStage } from '../types';
 import { SUBFUNCTIONS_LIST } from '../data/mockData';
-import { CHART_COLORS, classificationCounts, CLASSIFICATION_META, timeAgo } from '../lib/utils';
+import { CHART_COLORS, classificationCounts, CLASSIFICATION_META, computeRiceScore, formatRiceImpact, formatRiceScoreValue, timeAgo } from '../lib/utils';
 import { Avatar, Meter, Stat, StatusChip } from './ui';
 
 const TOOLTIP_STYLE = {
@@ -77,6 +77,16 @@ export default function DashboardCFO({
       .sort((a, b) => b.count - a.count || b.avg - a.avg)
       .slice(0, 4);
   }, [processes]);
+
+  // RICE-scored locked projects (L1 portfolio triage): Reach × Impact × Confidence ÷ Effort.
+  const riceRanked = useMemo(
+    () =>
+      managedProjects
+        .filter((p): p is ManagedProject & { rice: NonNullable<ManagedProject['rice']> } => !!p.rice)
+        .map((p) => ({ project: p, score: computeRiceScore(p.rice) }))
+        .sort((a, b) => b.score - a.score),
+    [managedProjects],
+  );
 
   const automationCandidates = processes.filter((p) => (p.automationSuitability ?? 0) >= 70).length;
   const avgCompleteness = processes.length
@@ -195,24 +205,62 @@ export default function DashboardCFO({
             </ul>
           </div>
 
-          {/* Champions */}
-          <div className="card p-6 lg:col-span-2 print:break-inside-avoid">
-            <h3 className="font-display font-semibold text-sm flex items-center gap-2">
-              <Award size={15} className="text-citron-deep" /> Directorate champions
-            </h3>
-            <ul className="mt-3.5 space-y-3">
-              {champions.map((champ, i) => (
-                <li key={champ.name} className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-faint w-4">{i + 1}</span>
-                  <Avatar name={champ.name} size={28} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{champ.name}</div>
-                    <div className="text-[11px] text-faint">{champ.count} processes · {champ.avg}% avg detail</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* RICE Score Summary (L1) — champions (L2 subfunction view) */}
+          {currentPersona === 'L1' ? (
+            <div className="card p-6 lg:col-span-2 print:break-inside-avoid">
+              <h3 className="font-display font-semibold text-sm flex items-center gap-2">
+                <Target size={15} className="text-citron-deep" /> RICE Score summary
+              </h3>
+              <p className="text-[11px] text-mute mt-0.5">
+                (Reach × Impact × Confidence) ÷ Effort — locked projects ranked by priority
+              </p>
+              {riceRanked.length === 0 ? (
+                <div className="mt-4 py-6 text-center text-xs text-faint border border-dashed border-line rounded-2xl">
+                  No projects scored with RICE inputs yet.
+                </div>
+              ) : (
+                <ul className="mt-3.5 space-y-3">
+                  {riceRanked.slice(0, 4).map(({ project, score }, i) => (
+                    <li key={project.id} className="flex items-start gap-3">
+                      <span className="text-xs font-bold text-faint w-4 mt-0.5">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-sm font-medium truncate">{project.title}</span>
+                          <span
+                            className="font-display text-sm font-bold text-citron-deep shrink-0"
+                            title={`RICE score: ${score.toLocaleString('en-US', { maximumFractionDigits: 1 })}`}
+                          >
+                            {formatRiceScoreValue(score)}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-faint">
+                          Reach {project.rice.reach} · {formatRiceImpact(project.rice)} · {project.rice.confidence}% conf. · {project.rice.effort} wks effort
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <div className="card p-6 lg:col-span-2 print:break-inside-avoid">
+              <h3 className="font-display font-semibold text-sm flex items-center gap-2">
+                <Award size={15} className="text-citron-deep" /> Directorate champions
+              </h3>
+              <ul className="mt-3.5 space-y-3">
+                {champions.map((champ, i) => (
+                  <li key={champ.name} className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-faint w-4">{i + 1}</span>
+                    <Avatar name={champ.name} size={28} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{champ.name}</div>
+                      <div className="text-[11px] text-faint">{champ.count} processes · {champ.avg}% avg detail</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Transformation plan */}

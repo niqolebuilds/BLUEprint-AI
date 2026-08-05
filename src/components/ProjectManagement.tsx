@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Briefcase,
   Users,
@@ -15,6 +16,7 @@ import {
   Bell,
   Clock,
   ArrowRight,
+  ArrowLeft,
   Info,
   Check,
   ChevronRight,
@@ -27,6 +29,7 @@ import {
   Sliders,
   Filter,
   FolderKanban,
+  LayoutGrid,
 } from 'lucide-react';
 import {
   ManagedProject,
@@ -42,6 +45,27 @@ import {
 } from '../types';
 import { Avatar } from './ui';
 import { uid, timeAgo } from '../lib/utils';
+
+/**
+ * Renders modal overlays into document.body via a portal. This is required
+ * because the page content sits inside an `.animate-fade-up` ancestor —
+ * CSS animations that touch `transform` (even a resting `translateY(0)`)
+ * establish a new containing block for `position: fixed` descendants, so a
+ * plain in-tree `fixed inset-0` overlay would center against that ancestor's
+ * box instead of the viewport, landing near the top-left of the page instead
+ * of dead-center. Portaling to <body> sidesteps that entirely.
+ */
+function ModalPortal({ children }: { children: React.ReactNode }) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+type ProjectSectionId = 'team' | 'transcripts' | 'assistant' | 'timeline' | 'okr';
 
 export default function ProjectManagement({
   projects,
@@ -98,8 +122,14 @@ export default function ProjectManagement({
   onActionNotification: (id: string, response: string) => void;
   onNavigateToCatalogue?: (processId?: string) => void;
 }) {
-  const [activeProjectId, setActiveProjectId] = useState<string>(projects[0]?.id || '');
-  
+  // Gallery / detail navigation — landing page is a gallery of project cards;
+  // selecting one opens the detail view. `null` = show the gallery.
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [galleryScope, setGalleryScope] = useState<'mine' | 'all'>('mine');
+  // Which categorized section is showing in the detail view (right-side nav),
+  // so the whole page doesn't have to be scrolled to reach a section.
+  const [activeSection, setActiveSection] = useState<ProjectSectionId>('team');
+
   // Modals & form state
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
@@ -228,9 +258,7 @@ export default function ProjectManagement({
     setMeetingRawText((prev) => (prev ? prev + "\n\n" + speechText : speechText));
   };
 
-  const currentProject = projects.find((p) => p.id === activeProjectId) || projects[0];
-
-  if (!currentProject) {
+  if (projects.length === 0) {
     return (
       <div className="card p-8 text-center space-y-4">
         <Briefcase className="w-12 h-12 text-mute mx-auto" />
@@ -251,7 +279,7 @@ export default function ProjectManagement({
               targetDate: '2026-12-31',
             };
             onAddProject(newProj);
-            setActiveProjectId(newProj.id);
+            setSelectedProjectId(newProj.id);
           }}
           className="btn-dark"
         >
@@ -261,17 +289,38 @@ export default function ProjectManagement({
     );
   }
 
-  // Filter project-specific data
-  const currentTeam = teamMembers.filter((m) => m.projectId === currentProject.id);
-  const currentTranscripts = transcripts.filter((t) => t.projectId === currentProject.id);
-  const currentNotes = meetingNotes.filter((n) => n.projectId === currentProject.id);
-  const currentGantt = ganttTasks.filter((g) => g.projectId === currentProject.id);
-  const currentOkr = projectOkrs.find((o) => o.projectId === currentProject.id);
+  // Projects that involve the current user directly — owner, or a named team member.
+  const isInvolved = (proj: ManagedProject) => {
+    if (proj.ownerName === profileName || (profileEmail && proj.ownerEmail === profileEmail)) return true;
+    return teamMembers.some(
+      (m) => m.projectId === proj.id && (m.name === profileName || (profileEmail && m.email === profileEmail)),
+    );
+  };
+  const myProjects = projects.filter(isInvolved);
+  const hasOtherProjects = myProjects.length < projects.length;
+  const galleryList = galleryScope === 'mine' && myProjects.length > 0 ? myProjects : projects;
+
+  const currentProject = projects.find((p) => p.id === selectedProjectId) || null;
+
+  // Filter project-specific data (only meaningful once a project is selected)
+  const currentTeam = currentProject ? teamMembers.filter((m) => m.projectId === currentProject.id) : [];
+  const currentTranscripts = currentProject ? transcripts.filter((t) => t.projectId === currentProject.id) : [];
+  const currentNotes = currentProject ? meetingNotes.filter((n) => n.projectId === currentProject.id) : [];
+  const currentGantt = currentProject ? ganttTasks.filter((g) => g.projectId === currentProject.id) : [];
+  const currentOkr = currentProject ? projectOkrs.find((o) => o.projectId === currentProject.id) : undefined;
+
+  const SECTION_NAV: Array<{ id: ProjectSectionId; label: string; icon: typeof Users; count?: number }> = [
+    { id: 'team', label: 'Project Team', icon: Users, count: currentTeam.length },
+    { id: 'transcripts', label: 'Meeting Transcripts & Ingestion', icon: FileText, count: currentTranscripts.length },
+    { id: 'assistant', label: 'AI Meeting Assistant & Action Items', icon: Sparkles, count: currentNotes.length },
+    { id: 'timeline', label: 'Project Timeline (Gantt)', icon: Calendar, count: currentGantt.length },
+    { id: 'okr', label: 'Project OKR', icon: Target },
+  ];
 
   // Submit new team member
   const handleAddPersonSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPersonName.trim() || !newPersonEmail.trim()) return;
+    if (!currentProject || !newPersonName.trim() || !newPersonEmail.trim()) return;
 
     const newMember: TeamMember = {
       id: uid('tm'),
@@ -290,7 +339,7 @@ export default function ProjectManagement({
   // Submit transcript ingestion & run AI Meeting Assistant
   const handleIngestTranscript = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!meetingRawText.trim()) return;
+    if (!currentProject || !meetingRawText.trim()) return;
 
     const participants = meetingParticipantsText
       .split(/[,;\n]/)
@@ -403,7 +452,7 @@ export default function ProjectManagement({
   // Add new Gantt task
   const handleAddGanttSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newGanttLabel.trim()) return;
+    if (!currentProject || !newGanttLabel.trim()) return;
 
     const newTask: GanttTask = {
       id: uid('gt'),
@@ -475,50 +524,98 @@ export default function ProjectManagement({
         </div>
       </div>
 
-      {/* Horizontal Tab Strip Across Top (One tab per locked project) */}
-      <div className="card p-2.5 flex items-center gap-2 overflow-x-auto scrollbar-none">
-        {projects.map((proj) => {
-          const isActive = proj.id === currentProject.id;
-          return (
-            <div key={proj.id} className="relative group shrink-0">
+      {!currentProject ? (
+        /* Project Gallery — landing page: a gallery of projects to choose from */
+        <div className="space-y-4">
+          {hasOtherProjects && (
+            <div className="flex items-center gap-1 p-1 bg-veil rounded-xl text-xs w-fit">
               <button
-                onClick={() => setActiveProjectId(proj.id)}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-all whitespace-nowrap cursor-pointer ${
-                  isActive
-                    ? 'bg-ink text-white shadow-lift'
-                    : 'bg-white hover:bg-veil/60 text-ink border border-line'
+                onClick={() => setGalleryScope('mine')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  galleryScope === 'mine' ? 'bg-white shadow-lift text-ink' : 'text-mute'
                 }`}
               >
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold max-w-[200px] truncate">{proj.title}</span>
-                  <span className={`text-[10px] ${isActive ? 'text-citron font-medium' : 'text-mute'}`}>
-                    {proj.stage.split(':')[0]}: {proj.stage.split(':')[1]?.trim()} · {proj.progressPercent}%
-                  </span>
-                </div>
-                <ChevronRight size={14} className={isActive ? 'text-citron' : 'text-mute'} />
+                My Projects ({myProjects.length})
               </button>
-              
-              {(isL2orL3 || currentPersona === 'Admin') && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeletingProject(proj);
-                  }}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white border border-line text-rose-500 items-center justify-center hidden group-hover:flex hover:bg-rose-50 transition-all cursor-pointer shadow-sm z-10"
-                  title="Erase Project"
-                >
-                  <X size={10} />
-                </button>
-              )}
+              <button
+                onClick={() => setGalleryScope('all')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  galleryScope === 'all' ? 'bg-white shadow-lift text-ink' : 'text-mute'
+                }`}
+              >
+                All Projects ({projects.length})
+              </button>
             </div>
-          );
-        })}
-      </div>
+          )}
 
-      {/* Main Project Content Grid */}
-      <div className="space-y-6">
-        {/* Section 1: Overview Header */}
-        <div className="card p-6 md:p-8 space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {galleryList.map((proj) => {
+              const projTeamCount = teamMembers.filter((m) => m.projectId === proj.id).length;
+              return (
+                <div key={proj.id} className="relative group">
+                  <button
+                    onClick={() => {
+                      setSelectedProjectId(proj.id);
+                      setActiveSection('team');
+                    }}
+                    className="w-full text-left card p-5 space-y-4 hover:border-veil-deep/40 hover:shadow-lift transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      {getStageBadge(proj.stage)}
+                      <span className="text-xs font-bold text-ink">{proj.progressPercent}%</span>
+                    </div>
+                    <div>
+                      <h3 className="font-display font-semibold text-base leading-snug line-clamp-2">{proj.title}</h3>
+                      <p className="text-xs text-mute mt-1 line-clamp-2">{proj.targetStatement}</p>
+                    </div>
+                    <div className="w-full bg-veil h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-citron-deep h-full rounded-full" style={{ width: `${proj.progressPercent}%` }} />
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-line">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Avatar name={proj.ownerName} size={26} />
+                        <span className="text-[11px] text-mute font-medium truncate">{proj.ownerName}</span>
+                      </div>
+                      <span className="text-[10px] text-faint flex items-center gap-1 shrink-0">
+                        <Users size={11} /> {projTeamCount}
+                      </span>
+                    </div>
+                  </button>
+
+                  {(isL2orL3 || currentPersona === 'Admin') && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingProject(proj);
+                      }}
+                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-line text-rose-500 items-center justify-center hidden group-hover:flex hover:bg-rose-50 transition-all cursor-pointer shadow-sm z-10"
+                      title="Erase Project"
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
+            {galleryList.length === 0 && (
+              <div className="col-span-full text-center py-10 text-xs text-mute border border-dashed border-line rounded-2xl">
+                No projects involve you yet. {hasOtherProjects && 'Switch to "All Projects" above, or '}lock a new project to get started.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <button
+            onClick={() => setSelectedProjectId(null)}
+            className="btn-ghost !py-1.5 !px-3 text-xs flex items-center gap-1.5 w-fit"
+          >
+            <ArrowLeft size={14} /> All Projects
+          </button>
+
+          {/* Section 1: Overview Header */}
+          <div className="card p-6 md:p-8 space-y-6">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div className="space-y-2 flex-1">
               <div className="flex items-center gap-3 flex-wrap">
@@ -602,6 +699,12 @@ export default function ProjectManagement({
           </div>
         </div>
 
+        {/* Categorized sections — right-side nav picks which one shows, so the
+            page doesn't have to be scrolled through top to bottom. */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+          <div className="lg:col-span-3 space-y-6">
+        {activeSection === 'team' && (
+        <>
         {/* Section 2: Team */}
         <div className="card p-6 space-y-4">
           <div className="flex items-center justify-between">
@@ -649,7 +752,11 @@ export default function ProjectManagement({
             ))}
           </div>
         </div>
+        </>
+        )}
 
+        {activeSection === 'transcripts' && (
+        <>
         {/* Section 3: Meeting Transcripts & Ingestion */}
         <div className="card p-6 space-y-5">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -708,7 +815,11 @@ export default function ProjectManagement({
             </div>
           )}
         </div>
+        </>
+        )}
 
+        {activeSection === 'assistant' && (
+        <>
         {/* Section 4: AI Meeting Assistant */}
         <div className="card p-6 space-y-5">
           <div className="flex items-center justify-between">
@@ -917,7 +1028,11 @@ export default function ProjectManagement({
             </div>
           )}
         </div>
+        </>
+        )}
 
+        {activeSection === 'timeline' && (
+        <>
         {/* Section 5: Project Timeline (Gantt Chart) */}
         <div className="card p-6 space-y-5">
           <div className="flex items-center justify-between">
@@ -1030,7 +1145,11 @@ export default function ProjectManagement({
             </div>
           </div>
         </div>
+        </>
+        )}
 
+        {activeSection === 'okr' && (
+        <>
         {/* Section 6: Project OKR */}
         <div className="card p-6 space-y-5">
           <div className="flex items-center justify-between">
@@ -1094,11 +1213,43 @@ export default function ProjectManagement({
             </div>
           )}
         </div>
+        </>
+        )}
+          </div>
+
+          {/* Right-side category navigation */}
+          <div className="lg:col-span-1">
+            <div className="card p-2.5 space-y-1 lg:sticky lg:top-6">
+              {SECTION_NAV.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all cursor-pointer ${
+                    activeSection === s.id ? 'bg-ink text-white shadow-lift' : 'text-inksoft hover:bg-veil/50'
+                  }`}
+                >
+                  <s.icon size={15} className={activeSection === s.id ? 'text-citron' : 'text-mute'} />
+                  <span className="flex-1">{s.label}</span>
+                  {typeof s.count === 'number' && (
+                    <span
+                      className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 ${
+                        activeSection === s.id ? 'bg-white/20 text-white' : 'bg-veil text-inksoft'
+                      }`}
+                    >
+                      {s.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
+      )}
 
       {/* Add Team Member Modal */}
       {showAddPersonModal && (
-        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalPortal>
           <div ref={(el) => { if (el) el.scrollTop = 0; }} className="relative bg-white border border-line rounded-3xl p-6 shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto animate-fade-up space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-line">
               <h3 className="font-display font-semibold text-base text-ink">Add Person to Project Team</h3>
@@ -1155,12 +1306,12 @@ export default function ProjectManagement({
               </div>
             </form>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Ingest Transcript / Call Notes Modal (with Speech-to-Text Microphone) */}
       {showIngestModal && (
-        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalPortal>
           <div ref={(el) => { if (el) el.scrollTop = 0; }} className="relative bg-white border border-line rounded-3xl p-6 shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-fade-up space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-line">
               <div>
@@ -1331,12 +1482,12 @@ export default function ProjectManagement({
               </div>
             </form>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Add Gantt Task Modal */}
       {showAddGanttModal && (
-        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalPortal>
           <div ref={(el) => { if (el) el.scrollTop = 0; }} className="relative bg-white border border-line rounded-3xl p-6 shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto animate-fade-up space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-line">
               <h3 className="font-display font-semibold text-base text-ink">Add Phase / Milestone Task</h3>
@@ -1401,12 +1552,12 @@ export default function ProjectManagement({
               </div>
             </form>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Edit Gantt Task Modal */}
       {showEditGanttModal && editingGanttTask && (
-        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalPortal>
           <div ref={(el) => { if (el) el.scrollTop = 0; }} className="relative bg-white border border-line rounded-3xl p-6 shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto animate-fade-up space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-line">
               <h3 className="font-display font-semibold text-base text-ink">Edit Phase / Gantt Task</h3>
@@ -1505,12 +1656,12 @@ export default function ProjectManagement({
               </div>
             </form>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Deliverable Details & Output Links Modal */}
       {showDeliverableModal && selectedGanttTaskForDeliverables && (
-        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalPortal>
           <div ref={(el) => { if (el) el.scrollTop = 0; }} className="relative bg-white border border-line rounded-3xl p-6 shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-fade-up space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-line">
               <div className="flex items-center gap-2">
@@ -1605,12 +1756,12 @@ export default function ProjectManagement({
               </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Edit Owner Modal */}
       {showEditOwnerModal && (
-        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalPortal>
           <div className="relative bg-white border border-line rounded-3xl p-6 shadow-2xl w-full max-w-sm animate-fade-up space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-line">
               <h3 className="font-display font-semibold text-base text-ink">Edit Project Owner</h3>
@@ -1667,12 +1818,12 @@ export default function ProjectManagement({
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Delete Project Confirm Modal */}
       {deletingProject && (
-        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalPortal>
           <div className="relative bg-white border border-line rounded-3xl p-6 shadow-2xl w-full max-w-sm animate-fade-up space-y-4 text-center">
             <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-500 grid place-items-center mx-auto mb-2">
               <X size={24} />
@@ -1691,12 +1842,9 @@ export default function ProjectManagement({
               </button>
               <button
                 onClick={() => {
-                  const isActive = deletingProject.id === currentProject.id;
+                  const isOpenInDetail = !!currentProject && deletingProject.id === currentProject.id;
                   onDeleteProject(deletingProject.id);
-                  if (isActive && projects.length > 1) {
-                    const otherProj = projects.find(p => p.id !== deletingProject.id);
-                    if (otherProj) setActiveProjectId(otherProj.id);
-                  }
+                  if (isOpenInDetail) setSelectedProjectId(null);
                   setDeletingProject(null);
                 }}
                 className="px-4 py-2 rounded-xl text-sm font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors cursor-pointer w-full"
@@ -1705,12 +1853,12 @@ export default function ProjectManagement({
               </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* Lock New Project Modal (Catalogue Selection Workflow) */}
       {showNewProjectModal && (
-        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalPortal>
           <div ref={(el) => { if (el) el.scrollTop = 0; }} className="relative bg-white border border-line rounded-3xl p-6 shadow-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto animate-fade-up space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-line">
               <div>
@@ -1871,7 +2019,8 @@ export default function ProjectManagement({
                     });
                   }
 
-                  setActiveProjectId(newProj.id);
+                  setSelectedProjectId(newProj.id);
+                  setActiveSection('team');
                   setShowNewProjectModal(false);
                   setNewProjTitle('');
                   setNewProjTarget('');
@@ -1924,12 +2073,12 @@ export default function ProjectManagement({
               </form>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* In-App Alerts Modal for L2 & L3 Users */}
       {showAlertsModal && isL2orL3 && (
-        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalPortal>
           <div ref={(el) => { if (el) el.scrollTop = 0; }} className="relative bg-white border border-line rounded-3xl p-6 shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto animate-fade-up space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-line">
               <div className="flex items-center gap-2">
@@ -1976,7 +2125,7 @@ export default function ProjectManagement({
               </div>
             )}
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

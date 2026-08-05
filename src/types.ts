@@ -327,6 +327,18 @@ export interface ProjectOKR {
   keyResults: KeyResult[];
 }
 
+/**
+ * RICE prioritization inputs for a locked project (US: L1 portfolio triage).
+ * Score = (Reach × Impact × Confidence) ÷ Effort — higher score = higher priority.
+ */
+export interface RiceScore {
+  reach: number; // n of people affected per period (e.g. per month)
+  impact: number; // rupiah value or time saved — the size of the win per person reached
+  impactUnit: 'IDR' | 'hours_per_month';
+  confidence: number; // 0-100 (%) — how sure we are of the reach/impact estimate
+  effort: number; // person-weeks of work (time, and money that has to be spent) to deliver
+}
+
 export interface ManagedProject {
   id: string;
   title: string;
@@ -338,6 +350,7 @@ export interface ManagedProject {
   stage: ProjectStage;
   progressPercent: number;
   targetDate: string;
+  rice?: RiceScore;
 }
 
 

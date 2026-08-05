@@ -63,19 +63,73 @@ function ProcessDetail({
   const [expandedPhases, setExpandedPhases] = useState<number[]>([0]); // first phase open by default
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
+  // User-editable "Manual Effort Released" override (hours/mo) — lets the user
+  // recalculate ROI / savings / opex against a different volume assumption
+  // than the one the AI proposed. `null` = use the AI baseline as-is.
+  const [manualHoursOverride, setManualHoursOverride] = useState<number | null>(null);
+
   // USD to IDR conversion (Rp 16.000 per USD)
   const toIDR = (usd: number) => usd * 16000;
   const formatIDR = (val: number) => {
     return 'Rp ' + Math.round(val).toLocaleString('id-ID');
   };
 
-  const isRoadmapSaved = !!(proc.savedDeploymentPlan && plan && JSON.stringify(proc.savedDeploymentPlan) === JSON.stringify(plan));
+  const baselineCB = plan?.costBenefitAnalysis;
+  const baselineManualHours = baselineCB?.manualHoursReducedPerMonth || 85;
+  const effectiveManualHours = manualHoursOverride ?? baselineManualHours;
+  const isManualHoursEdited = manualHoursOverride !== null && manualHoursOverride !== baselineManualHours;
+
+  /**
+   * Recompute Value/Cost/Benefit against the user-edited "Manual Effort
+   * Released" input. Savings scale linearly with hours released (hours ×
+   * an implied staff wage rate). Annual tooling & OPEX has a fixed
+   * subscription floor plus a volume-driven (token usage) share, since more
+   * automated volume means more API calls. ROI% and payback fall out of both.
+   */
+  const derivedCB = useMemo(() => {
+    if (!baselineCB) return null;
+    const baseSavingsUSD = baselineCB.estimatedAnnualSavingsUSD || 32000;
+    const baseOpexUSD = baselineCB.annualSubscriptionCostUSD || 2400;
+    const devCostUSD = baselineCB.developmentCostUSD || 6000;
+    const ratio = baselineManualHours > 0 ? effectiveManualHours / baselineManualHours : 1;
+
+    const estimatedAnnualSavingsUSD = Math.max(0, Math.round(baseSavingsUSD * ratio));
+    const variableShare = 0.65; // ~65% of opex tracks volume (tokens); ~35% is a fixed subscription floor
+    const annualSubscriptionCostUSD = Math.max(0, Math.round(baseOpexUSD * (1 - variableShare) + baseOpexUSD * variableShare * ratio));
+
+    const netAnnualBenefit = estimatedAnnualSavingsUSD - annualSubscriptionCostUSD;
+    const totalAnnualCost = devCostUSD + annualSubscriptionCostUSD;
+    const roiPercent = totalAnnualCost > 0 ? Math.round((netAnnualBenefit / totalAnnualCost) * 100) : 0;
+    const paybackPeriodMonths =
+      netAnnualBenefit > 0
+        ? Math.max(0.5, Math.round((devCostUSD / (netAnnualBenefit / 12)) * 10) / 10)
+        : baselineCB.paybackPeriodMonths || 3;
+
+    return {
+      ...baselineCB,
+      manualHoursReducedPerMonth: effectiveManualHours,
+      estimatedAnnualSavingsUSD,
+      annualSubscriptionCostUSD,
+      roiPercent,
+      paybackPeriodMonths,
+    };
+  }, [baselineCB, baselineManualHours, effectiveManualHours]);
+
+  // The plan actually rendered & saved — carries the live recalculation so a
+  // saved roadmap remembers the user's edited assumption.
+  const effectivePlan: DeploymentPlan | null = plan && derivedCB ? { ...plan, costBenefitAnalysis: derivedCB } : plan;
+
+  const isRoadmapSaved = !!(
+    proc.savedDeploymentPlan &&
+    effectivePlan &&
+    JSON.stringify(proc.savedDeploymentPlan) === JSON.stringify(effectivePlan)
+  );
 
   const handleSaveRoadmap = () => {
-    if (plan && onSaveProcess) {
+    if (effectivePlan && onSaveProcess) {
       onSaveProcess({
         ...proc,
-        savedDeploymentPlan: plan,
+        savedDeploymentPlan: effectivePlan,
       });
     }
   };
@@ -133,6 +187,7 @@ function ProcessDetail({
       const data = await response.json();
       setPlan(data);
       setLastGeneratedKey(currentKey);
+      setManualHoursOverride(null); // fresh baseline — clear any prior edit
     } catch (err: any) {
       setErrorPlan(err.message || 'An error occurred while generating deployment options.');
     } finally {
@@ -150,6 +205,7 @@ function ProcessDetail({
       setLastGeneratedKey('');
     }
     setErrorPlan(null);
+    setManualHoursOverride(null); // don't leak one process's edit into another
   }, [proc.id, proc.savedDeploymentPlan]);
 
   // Pre-generate the plan if the process is refined/approved and we do not have a plan yet (and no saved plan exists)
@@ -463,23 +519,30 @@ function ProcessDetail({
 
             {/* Value, Cost & Benefit Dashboard */}
             <div className="space-y-3">
-              <div className="flex items-center gap-1.5">
-                <TrendingUp size={14} className="text-citron-deep" />
-                <h4 className="font-display font-semibold text-xs text-ink uppercase tracking-wider">
-                  Value, Cost, &amp; Benefit Analysis (IDR)
-                </h4>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp size={14} className="text-citron-deep" />
+                  <h4 className="font-display font-semibold text-xs text-ink uppercase tracking-wider">
+                    Value, Cost, &amp; Benefit Analysis (IDR)
+                  </h4>
+                </div>
+                {isManualHoursEdited && (
+                  <span className="chip bg-citron-soft border-citron/40 text-citron-deep text-[10px] font-bold">
+                    Recalculated from edited effort
+                  </span>
+                )}
               </div>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {/* ROI Card */}
                 <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
                   <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Return on Investment</span>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-lg font-bold text-ink">+{plan.costBenefitAnalysis?.roiPercent || 380}%</span>
+                    <span className="text-lg font-bold text-ink">{(derivedCB?.roiPercent ?? 380) >= 0 ? '+' : ''}{derivedCB?.roiPercent ?? 380}%</span>
                     <span className="text-[10px] text-emerald-600 font-semibold">ROI</span>
                   </div>
                   <div className="text-[10px] text-faint">
-                    Payback in <strong className="text-ink">{plan.costBenefitAnalysis?.paybackPeriodMonths || 3} months</strong>
+                    Payback in <strong className="text-ink">{derivedCB?.paybackPeriodMonths ?? 3} months</strong>
                   </div>
                 </div>
 
@@ -487,22 +550,45 @@ function ProcessDetail({
                 <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
                   <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Est. Annual Savings</span>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-base font-bold text-ink">{formatIDR(toIDR(plan.costBenefitAnalysis?.estimatedAnnualSavingsUSD || 32000))}</span>
+                    <span className="text-base font-bold text-ink">{formatIDR(toIDR(derivedCB?.estimatedAnnualSavingsUSD ?? 32000))}</span>
                   </div>
                   <div className="text-[10px] text-faint">
                     Ongoing labor &amp; error reduction
                   </div>
                 </div>
 
-                {/* Labor Saved Card */}
-                <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Manual Effort Released</span>
+                {/* Labor Saved Card — editable: drives the recalculation below */}
+                <div className="bg-white border-2 border-citron/50 rounded-2xl p-3.5 space-y-1.5 shadow-sm">
+                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold flex items-center justify-between gap-1">
+                    Manual Effort Released
+                    {isManualHoursEdited && (
+                      <button
+                        type="button"
+                        onClick={() => setManualHoursOverride(null)}
+                        className="normal-case font-bold text-citron-deep hover:underline cursor-pointer"
+                        title="Reset to the AI-proposed baseline"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </span>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-lg font-bold text-ink">{plan.costBenefitAnalysis?.manualHoursReducedPerMonth || 85}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={effectiveManualHours}
+                      onChange={(e) => {
+                        const val = Math.max(0, Math.round(Number(e.target.value) || 0));
+                        setManualHoursOverride(val === baselineManualHours ? null : val);
+                      }}
+                      className="w-16 text-lg font-bold text-ink bg-transparent border-0 border-b-2 border-dashed border-line focus:border-citron-deep outline-none cursor-text"
+                      title="Edit to recalculate ROI, savings & OPEX"
+                    />
                     <span className="text-[10px] text-mute">hours/mo</span>
                   </div>
                   <div className="text-[10px] text-faint">
-                    Re-allocated to high-value tasks
+                    Re-allocated to high-value tasks · editable
                   </div>
                 </div>
 
@@ -510,10 +596,10 @@ function ProcessDetail({
                 <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
                   <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Annual Tooling &amp; OPEX</span>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-base font-bold text-ink">{formatIDR(toIDR(plan.costBenefitAnalysis?.annualSubscriptionCostUSD || 2400))}</span>
+                    <span className="text-base font-bold text-ink">{formatIDR(toIDR(derivedCB?.annualSubscriptionCostUSD ?? 2400))}</span>
                   </div>
                   <div className="text-[10px] text-faint leading-tight mt-0.5">
-                    Excludes one-time dev cost of {formatIDR(toIDR(plan.costBenefitAnalysis?.developmentCostUSD || 6000))}
+                    Excludes one-time dev cost of {formatIDR(toIDR(derivedCB?.developmentCostUSD ?? 6000))}
                   </div>
                 </div>
               </div>

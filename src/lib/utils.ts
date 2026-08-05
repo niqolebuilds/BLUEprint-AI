@@ -1,4 +1,4 @@
-import { Process, ProcessStep } from '../types';
+import { Process, ProcessStep, RiceScore } from '../types';
 
 export function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -121,6 +121,31 @@ export function greeting(): string {
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
+}
+
+/**
+ * RICE Score = (Reach × Impact × Confidence) ÷ Effort.
+ * Reach = n of people; Impact = rupiah or time saving; Confidence = 0-100 (%);
+ * Effort = effort to deliver (time / money that has to be spent).
+ */
+export function computeRiceScore(rice: RiceScore): number {
+  if (!rice.effort) return 0;
+  return (rice.reach * rice.impact * (rice.confidence / 100)) / rice.effort;
+}
+
+export function formatRiceImpact(rice: RiceScore): string {
+  if (rice.impactUnit === 'hours_per_month') return `${rice.impact.toLocaleString('id-ID')} hrs/mo`;
+  return `Rp ${rice.impact.toLocaleString('id-ID')}`;
+}
+
+/**
+ * Compact display for a RICE score. Raw scores can land anywhere from single
+ * digits (time-saving impact) to the hundreds of millions (rupiah impact),
+ * so abbreviate with K/M/B rather than showing every digit.
+ */
+export function formatRiceScoreValue(score: number): string {
+  if (!isFinite(score)) return '0';
+  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(score);
 }
 
 export function initials(name: string): string {
