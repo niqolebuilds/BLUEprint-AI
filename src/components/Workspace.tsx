@@ -28,59 +28,9 @@ import {
   UserProfile,
 } from '../types';
 import { greeting } from '../lib/utils';
+import { LanguageProvider, useLanguage } from '../lib/i18n';
 
-const PERSONA_LABELS: Record<Persona, string> = {
-  L1: 'CFO',
-  L2: 'GM / Head',
-  L3: 'Manager',
-  L4: 'Executor',
-  Admin: 'Admin',
-};
-
-export default function Workspace({
-  profile,
-  currentPersona,
-  setCurrentPersona,
-  initialTab,
-  focusProcessId,
-  clearFocusProcess,
-  processes,
-  availableSystems,
-  onUpdateSystems,
-  notifications,
-  adminBroadcastLogs,
-  improvementItems,
-  projectsManaged = [],
-  teamMembers = [],
-  transcripts = [],
-  meetingNotes = [],
-  ganttTasks = [],
-  projectOkrs = [],
-  onSaveProcess,
-  onDeleteProcess,
-  onAddSystem,
-  onMarkRead,
-  onActionNotification,
-  onTriggerReminder,
-  onTriggerAdminNotification,
-  onAddImprovementItem,
-  onUpdateImprovementItem,
-  onUpdateProject,
-  onAddProject,
-  onDeleteProject,
-  onAddTeamMember,
-  onRemoveTeamMember,
-  onAddTranscript,
-  onAddMeetingNote,
-  onUpdateMeetingNote,
-  onUpdateActionItemStatus,
-  onAddGanttTask,
-  onUpdateGanttTask,
-  onUpdateOkrKeyResult,
-  onCaptureNew,
-  onLock,
-  onImportData,
-}: {
+type WorkspaceProps = {
   profile: UserProfile;
   currentPersona: Persona;
   setCurrentPersona: (persona: Persona) => void;
@@ -133,7 +83,61 @@ export default function Workspace({
     },
     mode: 'merge' | 'overwrite'
   ) => void;
-}) {
+};
+
+export default function Workspace(props: WorkspaceProps) {
+  return (
+    <LanguageProvider>
+      <WorkspaceShell {...props} />
+    </LanguageProvider>
+  );
+}
+
+function WorkspaceShell({
+  profile,
+  currentPersona,
+  setCurrentPersona,
+  initialTab,
+  focusProcessId,
+  clearFocusProcess,
+  processes,
+  availableSystems,
+  onUpdateSystems,
+  notifications,
+  adminBroadcastLogs,
+  improvementItems,
+  projectsManaged = [],
+  teamMembers = [],
+  transcripts = [],
+  meetingNotes = [],
+  ganttTasks = [],
+  projectOkrs = [],
+  onSaveProcess,
+  onDeleteProcess,
+  onAddSystem,
+  onMarkRead,
+  onActionNotification,
+  onTriggerReminder,
+  onTriggerAdminNotification,
+  onAddImprovementItem,
+  onUpdateImprovementItem,
+  onUpdateProject,
+  onAddProject,
+  onDeleteProject,
+  onAddTeamMember,
+  onRemoveTeamMember,
+  onAddTranscript,
+  onAddMeetingNote,
+  onUpdateMeetingNote,
+  onUpdateActionItemStatus,
+  onAddGanttTask,
+  onUpdateGanttTask,
+  onUpdateOkrKeyResult,
+  onCaptureNew,
+  onLock,
+  onImportData,
+}: WorkspaceProps) {
+  const { language, setLanguage, t } = useLanguage();
   const [currentTab, setCurrentTab] = useState(initialTab);
   const [selectedViewProcess, setSelectedViewProcess] = useState<Process | null>(
     () => (focusProcessId && initialTab === 'catalogue' ? processes.find((p) => p.id === focusProcessId) ?? null : null),
@@ -228,21 +232,21 @@ export default function Workspace({
           {/* Left 60% */}
           <div className="md:col-span-3 min-w-0">
             <h1 className="font-display text-3xl md:text-4xl font-light tracking-tight">
-              {greeting()}, <span className="font-semibold">{profile.name.split(' ')[0]}!</span>
+              {greeting(language)}, <span className="font-semibold">{profile.name.split(' ')[0]}!</span>
             </h1>
-            <p className="text-sm text-mute mt-1">Let&rsquo;s make the way you work visible.</p>
+            <p className="text-sm text-mute mt-1">{t('header_subtitle')}</p>
 
             <div className="flex items-center gap-6 mt-4 print:hidden">
               <div>
-                <div className="text-[11px] font-semibold text-mute">Processes documented</div>
+                <div className="text-[11px] font-semibold text-mute">{t('header_processes_documented')}</div>
                 <div className="font-display text-2xl font-semibold leading-tight">
                   {processes.length}
-                  <span className="text-sm text-faint font-normal ml-1.5">{myProcessCount} yours</span>
+                  <span className="text-sm text-faint font-normal ml-1.5">{myProcessCount} {t('header_yours')}</span>
                 </div>
               </div>
               <div className="w-px h-8 bg-line" />
               <div>
-                <div className="text-[11px] font-semibold text-mute">Avg. completeness</div>
+                <div className="text-[11px] font-semibold text-mute">{t('header_avg_completeness')}</div>
                 <div className="font-display text-2xl font-semibold leading-tight">{avgCompleteness}%</div>
               </div>
             </div>
@@ -252,7 +256,7 @@ export default function Workspace({
           <div className="md:col-span-2 flex items-center justify-end gap-3 print:hidden flex-wrap">
             {currentPersona !== 'Admin' && (
               <button onClick={onCaptureNew} className="btn-dark" title="Primary action">
-                <Plus size={16} /> Capture process
+                <Plus size={16} /> {t('header_capture_process')}
               </button>
             )}
             <button
@@ -262,7 +266,7 @@ export default function Workspace({
               aria-label="Transfer local data (Import/Export)"
             >
               <ArrowLeftRight size={15} />
-              <span className="hidden sm:inline">Transfer Data</span>
+              <span className="hidden sm:inline">{t('header_transfer_data')}</span>
             </button>
 
             {/* User menu — single button; tap or hover reveals View As + Log out */}
@@ -270,7 +274,7 @@ export default function Workspace({
               <button
                 onClick={() => setShowUserMenu((v) => !v)}
                 className={`rounded-full ring-2 transition-all cursor-pointer ${showUserMenu ? 'ring-veil' : 'ring-transparent group-hover:ring-veil'}`}
-                title={`${profile.name} · ${PERSONA_LABELS[currentPersona]}`}
+                title={`${profile.name} · ${t('persona_' + currentPersona)}`}
                 aria-label="User menu"
                 aria-expanded={showUserMenu}
               >
@@ -288,7 +292,7 @@ export default function Workspace({
                 <div className="w-52 max-w-[calc(100vw-2rem)] bg-white border border-line rounded-2xl shadow-xl p-2.5">
                   {(profile.role === 'Admin' || profile.role === 'L1') && (
                     <>
-                      <div className="text-[10px] font-bold text-faint tracking-wide px-1.5 pb-1.5">VIEW AS</div>
+                      <div className="text-[10px] font-bold text-faint tracking-wide px-1.5 pb-1.5">{t('header_view_as').toUpperCase()}</div>
                       <div className="flex items-center gap-1 px-0.5 pb-2">
                         {(['L1', 'L2', 'L3', 'L4', 'Admin'] as Persona[]).map((level) => (
                           <button
@@ -297,7 +301,7 @@ export default function Workspace({
                               handlePersonaChange(level);
                               setShowUserMenu(false);
                             }}
-                            title={`View as ${PERSONA_LABELS[level]} (${level})`}
+                            title={`${t('header_view_as')} ${t('persona_' + level)} (${level})`}
                             className={`flex-1 h-8 rounded-lg text-[10px] font-bold grid place-items-center transition-all cursor-pointer ${
                               currentPersona === level ? 'bg-ink text-citron' : 'text-mute hover:bg-veil/60 hover:text-ink'
                             }`}
@@ -309,11 +313,30 @@ export default function Workspace({
                       <div className="h-px bg-line my-0.5" />
                     </>
                   )}
+
+                  {/* Language switch */}
+                  <div className="text-[10px] font-bold text-faint tracking-wide px-1.5 pb-1.5">{t('header_language').toUpperCase()}</div>
+                  <div className="flex items-center gap-1 px-0.5 pb-2">
+                    {(['en', 'id'] as const).map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => setLanguage(lang)}
+                        title={lang === 'en' ? 'English' : 'Bahasa Indonesia'}
+                        className={`flex-1 h-8 rounded-lg text-[11px] font-bold grid place-items-center transition-all cursor-pointer ${
+                          language === lang ? 'bg-ink text-citron' : 'text-mute hover:bg-veil/60 hover:text-ink'
+                        }`}
+                      >
+                        {lang === 'en' ? 'EN' : 'ID'}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="h-px bg-line my-0.5" />
+
                   <button
                     onClick={onLock}
                     className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-semibold text-mute hover:bg-rose-50 hover:text-rose-500 transition-colors cursor-pointer"
                   >
-                    <LockKeyhole size={14} /> Log out
+                    <LockKeyhole size={14} /> {t('header_log_out')}
                   </button>
                 </div>
               </div>

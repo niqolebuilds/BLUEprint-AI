@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Persona } from '../types';
+import { useLanguage } from '../lib/i18n';
 
 export interface NavItem {
   id: string;
@@ -28,14 +29,6 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'admin', label: 'Programme admin', shortLabel: 'Admin', icon: ShieldCheck, roles: ['Admin'] },
 ];
 
-const PERSONA_LABELS: Record<Persona, string> = {
-  L1: 'CFO',
-  L2: 'GM / Head',
-  L3: 'Manager',
-  L4: 'Executor',
-  Admin: 'Admin',
-};
-
 export default function Sidebar({
   currentTab,
   setCurrentTab,
@@ -55,7 +48,10 @@ export default function Sidebar({
   onLock: () => void;
   profileRole: Persona;
 }) {
+  const { t } = useLanguage();
   const items = NAV_ITEMS.filter((item) => item.roles.includes(currentPersona));
+  const labelFor = (itemId: string) => t(`nav_${itemId}`);
+  const shortLabelFor = (itemId: string) => t(`nav_${itemId}_short`);
 
   const badgeFor = (itemId: string) =>
     itemId === 'notifications' && (currentPersona === 'L2' || currentPersona === 'L3') ? unreadNotifications : 0;
@@ -84,8 +80,8 @@ export default function Sidebar({
                 <button
                   key={item.id}
                   onClick={() => (item.id === 'capture' ? onCaptureNew() : setCurrentTab(item.id))}
-                  title={item.label}
-                  aria-label={item.label}
+                  title={labelFor(item.id)}
+                  aria-label={labelFor(item.id)}
                   className={`relative w-11 h-11 rounded-full grid place-items-center transition-all cursor-pointer ${
                     active
                       ? 'bg-ink text-white shadow-lift'
@@ -120,7 +116,7 @@ export default function Sidebar({
               <button
                 key={item.id}
                 onClick={() => (item.id === 'capture' ? onCaptureNew() : setCurrentTab(item.id))}
-                aria-label={item.label}
+                aria-label={labelFor(item.id)}
                 className={`relative flex-1 min-w-16 flex flex-col items-center justify-center gap-0.5 py-2.5 cursor-pointer transition-colors ${
                   active ? 'text-ink' : 'text-faint'
                 }`}
@@ -132,7 +128,7 @@ export default function Sidebar({
                   </span>
                 )}
                 <span className="text-[9px] font-semibold leading-none truncate max-w-full px-1">
-                  {item.shortLabel}
+                  {shortLabelFor(item.id)}
                 </span>
               </button>
             );

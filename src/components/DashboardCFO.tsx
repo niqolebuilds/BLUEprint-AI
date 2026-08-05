@@ -15,6 +15,7 @@ import { ImprovementItem, ManagedProject, Persona, Process, ProjectStage } from 
 import { SUBFUNCTIONS_LIST } from '../data/mockData';
 import { CHART_COLORS, classificationCounts, CLASSIFICATION_META, computeRiceScore, formatRiceImpact, formatRiceScoreValue, timeAgo } from '../lib/utils';
 import { Avatar, Meter, Stat, StatusChip } from './ui';
+import { useLanguage } from '../lib/i18n';
 
 const TOOLTIP_STYLE = {
   borderRadius: 14,
@@ -43,6 +44,7 @@ export default function DashboardCFO({
   onUpdateProject?: (proj: ManagedProject) => void;
   onNavigateToProject?: () => void;
 }) {
+  const { t } = useLanguage();
   const coverageData = useMemo(
     () =>
       SUBFUNCTIONS_LIST.map((sf) => ({
@@ -102,24 +104,24 @@ export default function DashboardCFO({
     <div className="animate-fade-up space-y-5">
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <h2 className="font-display text-xl font-semibold tracking-tight">
-          {currentPersona === 'L1' ? 'Directorate overview' : 'Subfunction overview'}
+          {currentPersona === 'L1' ? t('dash_directorate_overview') : t('dash_subfunction_overview')}
         </h2>
-        <span className="text-xs text-faint">Last refreshed {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="text-xs text-faint">{t('dash_last_refreshed')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
 
       {/* Stat tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:break-inside-avoid">
-        <Stat label="Processes documented" value={processes.length} hint="across 7 functions" accent="citron" />
-        <Stat label="Avg. completeness" value={`${avgCompleteness}%`} hint="of required detail captured" />
-        <Stat label="Automation candidates" value={automationCandidates} hint="suitability ≥ 70" accent="veil" />
-        <Stat label="Improvements resolved" value={`${resolvedImprovements}/${improvementItems.length}`} hint="tracked initiatives" />
+        <Stat label={t('header_processes_documented')} value={processes.length} hint={t('stat_processes_documented_hint')} accent="citron" />
+        <Stat label={t('header_avg_completeness')} value={`${avgCompleteness}%`} hint={t('stat_avg_completeness_hint')} />
+        <Stat label={t('stat_automation_candidates')} value={automationCandidates} hint={t('stat_automation_candidates_hint')} accent="veil" />
+        <Stat label={t('stat_improvements_resolved')} value={`${resolvedImprovements}/${improvementItems.length}`} hint={t('stat_improvements_resolved_hint')} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Coverage by subfunction */}
         <div className="card p-6 lg:col-span-3 print:break-inside-avoid">
-          <h3 className="font-display font-semibold text-sm">Documentation coverage by line of work</h3>
-          <p className="text-xs text-mute mt-0.5 mb-4">Documented processes per subfunction</p>
+          <h3 className="font-display font-semibold text-sm">{t('dash_coverage_title')}</h3>
+          <p className="text-xs text-mute mt-0.5 mb-4">{t('dash_coverage_subtitle')}</p>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={coverageData} margin={{ top: 4, right: 4, bottom: 45, left: -28 }}>
               <XAxis
@@ -146,11 +148,11 @@ export default function DashboardCFO({
 
         {/* Classification mix */}
         <div className="card p-6 lg:col-span-2 print:break-inside-avoid">
-          <h3 className="font-display font-semibold text-sm">How the work splits</h3>
-          <p className="text-xs text-mute mt-0.5 mb-1">{totalClassified} classified steps</p>
+          <h3 className="font-display font-semibold text-sm">{t('dash_splits_title')}</h3>
+          <p className="text-xs text-mute mt-0.5 mb-1">{totalClassified} {t('dash_splits_count')}</p>
           {totalClassified === 0 ? (
             <div className="h-52 grid place-items-center text-sm text-faint text-center px-6">
-              Run AI refinement on a process to see the agentic / automation / human split.
+              {t('dash_splits_empty')}
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -183,7 +185,7 @@ export default function DashboardCFO({
           {/* Recent processes */}
           <div className="card p-6 lg:col-span-3 print:break-inside-avoid">
             <h3 className="font-display font-semibold text-sm flex items-center gap-2">
-              <TrendingUp size={15} className="text-veil-deep" /> Latest documentation activity
+              <TrendingUp size={15} className="text-veil-deep" /> {t('dash_latest_activity')}
             </h3>
             <ul className="mt-4 divide-y divide-line">
               {recent.map((proc) => (
@@ -209,14 +211,14 @@ export default function DashboardCFO({
           {currentPersona === 'L1' ? (
             <div className="card p-6 lg:col-span-2 print:break-inside-avoid">
               <h3 className="font-display font-semibold text-sm flex items-center gap-2">
-                <Target size={15} className="text-citron-deep" /> RICE Score summary
+                <Target size={15} className="text-citron-deep" /> {t('dash_rice_summary')}
               </h3>
               <p className="text-[11px] text-mute mt-0.5">
-                (Reach × Impact × Confidence) ÷ Effort — locked projects ranked by priority
+                {t('dash_rice_formula')}
               </p>
               {riceRanked.length === 0 ? (
                 <div className="mt-4 py-6 text-center text-xs text-faint border border-dashed border-line rounded-2xl">
-                  No projects scored with RICE inputs yet.
+                  {t('dash_rice_empty')}
                 </div>
               ) : (
                 <ul className="mt-3.5 space-y-3">
@@ -245,7 +247,7 @@ export default function DashboardCFO({
           ) : (
             <div className="card p-6 lg:col-span-2 print:break-inside-avoid">
               <h3 className="font-display font-semibold text-sm flex items-center gap-2">
-                <Award size={15} className="text-citron-deep" /> Directorate champions
+                <Award size={15} className="text-citron-deep" /> {t('dash_champions')}
               </h3>
               <ul className="mt-3.5 space-y-3">
                 {champions.map((champ, i) => (
@@ -267,14 +269,14 @@ export default function DashboardCFO({
         <div className="card bg-ink border-transparent p-6 text-white print:break-inside-avoid space-y-4">
           <div className="flex items-center justify-between">
               <h3 className="font-display font-semibold text-sm flex items-center gap-2">
-                <Route size={15} className="text-citron" /> Native-AI transformation
+                <Route size={15} className="text-citron" /> {t('dash_transformation_title')}
               </h3>
               {onNavigateToProject && (
                 <button
                   onClick={onNavigateToProject}
                   className="text-[11px] font-semibold text-citron hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  Manage <ArrowRight size={12} />
+                  {t('dash_manage')} <ArrowRight size={12} />
                 </button>
               )}
             </div>
@@ -350,7 +352,7 @@ export default function DashboardCFO({
             </div>
 
             <p className="text-[11px] text-white/50 pt-2 border-t border-white/10">
-              Stages 4–6 · Connected directly to active Locked Projects &amp; execution tracker.
+              {t('dash_transformation_footer')}
             </p>
           </div>
         </div>

@@ -44,6 +44,7 @@ import {
   Process,
 } from '../types';
 import { Avatar } from './ui';
+import { useLanguage } from '../lib/i18n';
 import { uid, timeAgo } from '../lib/utils';
 
 /**
@@ -122,6 +123,7 @@ export default function ProjectManagement({
   onActionNotification: (id: string, response: string) => void;
   onNavigateToCatalogue?: (processId?: string) => void;
 }) {
+  const { t } = useLanguage();
   // Gallery / detail navigation — landing page is a gallery of project cards;
   // selecting one opens the detail view. `null` = show the gallery.
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -310,11 +312,11 @@ export default function ProjectManagement({
   const currentOkr = currentProject ? projectOkrs.find((o) => o.projectId === currentProject.id) : undefined;
 
   const SECTION_NAV: Array<{ id: ProjectSectionId; label: string; icon: typeof Users; count?: number }> = [
-    { id: 'team', label: 'Project Team', icon: Users, count: currentTeam.length },
-    { id: 'transcripts', label: 'Meeting Transcripts & Ingestion', icon: FileText, count: currentTranscripts.length },
-    { id: 'assistant', label: 'AI Meeting Assistant & Action Items', icon: Sparkles, count: currentNotes.length },
-    { id: 'timeline', label: 'Project Timeline (Gantt)', icon: Calendar, count: currentGantt.length },
-    { id: 'okr', label: 'Project OKR', icon: Target },
+    { id: 'team', label: t('pm_section_team'), icon: Users, count: currentTeam.length },
+    { id: 'transcripts', label: t('pm_section_transcripts'), icon: FileText, count: currentTranscripts.length },
+    { id: 'assistant', label: t('pm_section_assistant'), icon: Sparkles, count: currentNotes.length },
+    { id: 'timeline', label: t('pm_section_timeline'), icon: Calendar, count: currentGantt.length },
+    { id: 'okr', label: t('pm_section_okr'), icon: Target },
   ];
 
   // Submit new team member
@@ -489,11 +491,11 @@ export default function ProjectManagement({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-line">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-display text-2xl font-semibold tracking-tight">Project Management</h2>
-            <span className="chip bg-ink text-citron font-medium text-xs">Stages 4–6</span>
+            <h2 className="font-display text-2xl font-semibold tracking-tight">{t('pm_title')}</h2>
+            <span className="chip bg-ink text-citron font-medium text-xs">{t('pm_stages_badge')}</span>
           </div>
           <p className="text-sm text-mute mt-0.5">
-            Operational workspace for locked projects carrying execution from investment gate to benefit realization.
+            {t('pm_subtitle')}
           </p>
         </div>
 
@@ -506,7 +508,7 @@ export default function ProjectManagement({
               title="View In-App Alerts (L2/L3)"
             >
               <Bell size={16} className="text-ink" />
-              <span className="text-xs font-medium">In-App Alerts</span>
+              <span className="text-xs font-medium">{t('pm_in_app_alerts')}</span>
               {unreadAlerts.length > 0 && (
                 <span className="min-w-5 h-5 px-1.5 rounded-full bg-citron text-ink text-[10px] font-bold grid place-items-center">
                   {unreadAlerts.length}
@@ -519,7 +521,7 @@ export default function ProjectManagement({
             onClick={() => setShowNewProjectModal(true)}
             className="btn-dark !py-2 !px-3.5 text-xs flex items-center gap-1.5"
           >
-            <Plus size={15} /> Lock New Project
+            <Plus size={15} /> {t('pm_lock_new_project')}
           </button>
         </div>
       </div>
@@ -535,7 +537,7 @@ export default function ProjectManagement({
                   galleryScope === 'mine' ? 'bg-white shadow-lift text-ink' : 'text-mute'
                 }`}
               >
-                My Projects ({myProjects.length})
+                {t('pm_my_projects')} ({myProjects.length})
               </button>
               <button
                 onClick={() => setGalleryScope('all')}
@@ -543,7 +545,7 @@ export default function ProjectManagement({
                   galleryScope === 'all' ? 'bg-white shadow-lift text-ink' : 'text-mute'
                 }`}
               >
-                All Projects ({projects.length})
+                {t('pm_all_projects')} ({projects.length})
               </button>
             </div>
           )}
@@ -600,7 +602,7 @@ export default function ProjectManagement({
 
             {galleryList.length === 0 && (
               <div className="col-span-full text-center py-10 text-xs text-mute border border-dashed border-line rounded-2xl">
-                No projects involve you yet. {hasOtherProjects && 'Switch to "All Projects" above, or '}lock a new project to get started.
+                {t('pm_gallery_empty')} {hasOtherProjects && t('pm_gallery_empty_switch')}{t('pm_gallery_empty_lock')}
               </div>
             )}
           </div>
@@ -611,7 +613,7 @@ export default function ProjectManagement({
             onClick={() => setSelectedProjectId(null)}
             className="btn-ghost !py-1.5 !px-3 text-xs flex items-center gap-1.5 w-fit"
           >
-            <ArrowLeft size={14} /> All Projects
+            <ArrowLeft size={14} /> {t('pm_back_to_projects')}
           </button>
 
           {/* Section 1: Overview Header */}
@@ -710,7 +712,7 @@ export default function ProjectManagement({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users size={18} className="text-ink" />
-              <h3 className="font-display font-semibold text-base">Project Team</h3>
+              <h3 className="font-display font-semibold text-base">{t('pm_section_team')}</h3>
               <span className="text-xs text-mute font-medium">({currentTeam.length} members)</span>
             </div>
 
@@ -763,7 +765,7 @@ export default function ProjectManagement({
             <div>
               <div className="flex items-center gap-2">
                 <FileText size={18} className="text-ink" />
-                <h3 className="font-display font-semibold text-base">Meeting Transcripts & Ingestion</h3>
+                <h3 className="font-display font-semibold text-base">{t('pm_section_transcripts')}</h3>
               </div>
               <p className="text-xs text-mute mt-0.5">Ingest raw call notes or transcripts for AI action extraction.</p>
             </div>
@@ -825,7 +827,7 @@ export default function ProjectManagement({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-citron-deep" />
-              <h3 className="font-display font-semibold text-base">AI Meeting Assistant & Action Items</h3>
+              <h3 className="font-display font-semibold text-base">{t('pm_section_assistant')}</h3>
             </div>
             {isProcessingAi && (
               <span className="text-xs font-semibold text-citron-deep flex items-center gap-1.5 animate-pulse">
@@ -1039,7 +1041,7 @@ export default function ProjectManagement({
             <div>
               <div className="flex items-center gap-2">
                 <Calendar size={18} className="text-ink" />
-                <h3 className="font-display font-semibold text-base">Project Timeline (Gantt)</h3>
+                <h3 className="font-display font-semibold text-base">{t('pm_section_timeline')}</h3>
               </div>
               <p className="text-xs text-mute mt-0.5">Execution phases and milestones against target date ({currentProject.targetDate}).</p>
             </div>
@@ -1155,7 +1157,7 @@ export default function ProjectManagement({
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
               <Target size={18} className="text-citron-deep" />
-              <h3 className="font-display font-semibold text-base">Project OKR</h3>
+              <h3 className="font-display font-semibold text-base">{t('pm_section_okr')}</h3>
             </div>
             {currentOkr && (
               <span className="chip bg-veil border-line text-xs font-semibold max-w-full whitespace-normal text-left">

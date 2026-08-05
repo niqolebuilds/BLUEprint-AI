@@ -115,8 +115,14 @@ export function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export function greeting(): string {
+export function greeting(language: 'en' | 'id' = 'en'): string {
   const h = new Date().getHours();
+  if (language === 'id') {
+    if (h < 5) return 'Masih kerja ya';
+    if (h < 12) return 'Selamat pagi';
+    if (h < 17) return 'Selamat siang';
+    return 'Selamat malam';
+  }
   if (h < 5) return 'Working late';
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
