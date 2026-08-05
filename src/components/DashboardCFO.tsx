@@ -108,14 +108,14 @@ export default function DashboardCFO({
       </div>
 
       {/* Stat tiles */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 print:break-inside-avoid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:break-inside-avoid">
         <Stat label="Processes documented" value={processes.length} hint="across 7 functions" accent="citron" />
         <Stat label="Avg. completeness" value={`${avgCompleteness}%`} hint="of required detail captured" />
         <Stat label="Automation candidates" value={automationCandidates} hint="suitability ≥ 70" accent="veil" />
         <Stat label="Improvements resolved" value={`${resolvedImprovements}/${improvementItems.length}`} hint="tracked initiatives" />
       </div>
 
-      <div className="grid lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Coverage by subfunction */}
         <div className="card p-6 lg:col-span-3 print:break-inside-avoid">
           <h3 className="font-display font-semibold text-sm">Documentation coverage by line of work</h3>
@@ -179,7 +179,7 @@ export default function DashboardCFO({
       </div>
 
       <div className="space-y-4">
-        <div className="grid lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Recent processes */}
           <div className="card p-6 lg:col-span-3 print:break-inside-avoid">
             <h3 className="font-display font-semibold text-sm flex items-center gap-2">

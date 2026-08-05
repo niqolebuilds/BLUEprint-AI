@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, ArrowLeftRight, LockKeyhole } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import Sidebar from './Sidebar';
@@ -140,6 +140,19 @@ export default function Workspace({
   );
   const [showDataHub, setShowDataHub] = useState(false);
 
+  // User menu — tap-to-toggle (hover is a bonus on desktop, but phones have no
+  // mouse, so a pure CSS :hover dropdown is unreachable on touch).
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setShowUserMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserMenu]);
+
   // Keep the open detail view in sync when a process is updated elsewhere.
   useEffect(() => {
     if (selectedViewProcess) {
@@ -211,7 +224,7 @@ export default function Workspace({
 
       <div className="flex-1 flex flex-col min-w-0 print:h-auto print:overflow-visible">
         {/* Header — left 60%: greeting + subtitle + KPIs · right 40%: primary/secondary CTA + user menu */}
-        <header className="app-header px-6 md:px-10 pt-7 pb-5 grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-6 print:pb-6 print:border-b print:border-line">
+        <header className="app-header px-4 sm:px-6 md:px-10 pt-6 sm:pt-7 pb-5 grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-6 print:pb-6 print:border-b print:border-line">
           {/* Left 60% */}
           <div className="md:col-span-3 min-w-0">
             <h1 className="font-display text-3xl md:text-4xl font-light tracking-tight">
@@ -236,7 +249,7 @@ export default function Workspace({
           </div>
 
           {/* Right 40% */}
-          <div className="md:col-span-2 flex items-start md:items-center justify-start md:justify-end gap-3 print:hidden flex-wrap">
+          <div className="md:col-span-2 flex items-center justify-end gap-3 print:hidden flex-wrap">
             {currentPersona !== 'Admin' && (
               <button onClick={onCaptureNew} className="btn-dark" title="Primary action">
                 <Plus size={16} /> Capture process
@@ -252,19 +265,27 @@ export default function Workspace({
               <span className="hidden sm:inline">Transfer Data</span>
             </button>
 
-            {/* User menu — single button; hover reveals View As + Log out */}
-            <div className="relative group shrink-0">
+            {/* User menu — single button; tap or hover reveals View As + Log out */}
+            <div ref={userMenuRef} className="relative group shrink-0">
               <button
-                className="rounded-full ring-2 ring-transparent group-hover:ring-veil transition-all cursor-pointer"
+                onClick={() => setShowUserMenu((v) => !v)}
+                className={`rounded-full ring-2 transition-all cursor-pointer ${showUserMenu ? 'ring-veil' : 'ring-transparent group-hover:ring-veil'}`}
                 title={`${profile.name} · ${PERSONA_LABELS[currentPersona]}`}
                 aria-label="User menu"
+                aria-expanded={showUserMenu}
               >
                 <Avatar name={profile.name} size={42} />
               </button>
 
-              {/* Hover bridge + dropdown */}
-              <div className="absolute right-0 top-full pt-2 z-50 opacity-0 invisible translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-150">
-                <div className="w-48 bg-white border border-line rounded-2xl shadow-xl p-2.5">
+              {/* Hover bridge + dropdown — visible on tap (showUserMenu) or hover (desktop) */}
+              <div
+                className={`absolute right-0 top-full pt-2 z-50 transition-all duration-150 ${
+                  showUserMenu
+                    ? 'opacity-100 visible translate-y-0 pointer-events-auto'
+                    : 'opacity-0 invisible translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:pointer-events-auto'
+                }`}
+              >
+                <div className="w-52 max-w-[calc(100vw-2rem)] bg-white border border-line rounded-2xl shadow-xl p-2.5">
                   {(profile.role === 'Admin' || profile.role === 'L1') && (
                     <>
                       <div className="text-[10px] font-bold text-faint tracking-wide px-1.5 pb-1.5">VIEW AS</div>
@@ -272,7 +293,10 @@ export default function Workspace({
                         {(['L1', 'L2', 'L3', 'L4', 'Admin'] as Persona[]).map((level) => (
                           <button
                             key={level}
-                            onClick={() => handlePersonaChange(level)}
+                            onClick={() => {
+                              handlePersonaChange(level);
+                              setShowUserMenu(false);
+                            }}
                             title={`View as ${PERSONA_LABELS[level]} (${level})`}
                             className={`flex-1 h-8 rounded-lg text-[10px] font-bold grid place-items-center transition-all cursor-pointer ${
                               currentPersona === level ? 'bg-ink text-citron' : 'text-mute hover:bg-veil/60 hover:text-ink'
@@ -298,7 +322,7 @@ export default function Workspace({
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto px-6 md:px-10 py-6 print:h-auto print:overflow-visible">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 pt-6 pb-24 sm:pb-6 print:h-auto print:overflow-visible">
           <div className="max-w-6xl mx-auto space-y-6 pb-10">
             {currentTab === 'dashboard' &&
               (currentPersona === 'L3' ? (

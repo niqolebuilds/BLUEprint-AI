@@ -272,7 +272,7 @@ function ProcessDetail({
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-4 gap-5 mt-6 pt-5 border-t border-line">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-5 mt-6 pt-5 border-t border-line">
           <div>
             <div className="label">Owner</div>
             <div className="flex items-center gap-2">
@@ -718,7 +718,7 @@ function ProcessDetail({
             </div>
 
             {/* Subscriptions & Partnerships Matrix */}
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Tooling & Subscriptions */}
               <div className="bg-canvas border border-line rounded-2xl p-4.5 space-y-3.5">
                 <div className="flex items-center gap-2 border-b border-line/60 pb-2.5">
@@ -960,22 +960,30 @@ export default function ProcessCatalogue({
 
       {/* Pill filters */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
           <input
-            className="field !rounded-full !py-2 !pl-9 !pr-4 !w-60 text-sm"
+            className="field !rounded-full !py-2 !pl-9 !pr-4 w-full sm:!w-60 text-sm"
             placeholder="Search title, owner, steps…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <select className="field !rounded-full !py-2 !px-4 !w-auto text-sm cursor-pointer" value={subFunction} onChange={(e) => setSubFunction(e.target.value)}>
+        <select
+          className="field !rounded-full !py-2 !px-4 max-w-[calc(50%-0.3125rem)] sm:max-w-none sm:!w-auto text-sm cursor-pointer"
+          value={subFunction}
+          onChange={(e) => setSubFunction(e.target.value)}
+        >
           <option value="">All lines of work</option>
           {SUBFUNCTIONS_LIST.map((sf) => (
             <option key={sf} value={sf}>{sf}</option>
           ))}
         </select>
-        <select className="field !rounded-full !py-2 !px-4 !w-auto text-sm cursor-pointer" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <select
+          className="field !rounded-full !py-2 !px-4 max-w-[calc(50%-0.3125rem)] sm:max-w-none sm:!w-auto text-sm cursor-pointer"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
           <option value="">Any status</option>
           {['Draft', 'Submitted', 'Refined', 'Approved'].map((s) => (
             <option key={s} value={s}>{s}</option>
@@ -1009,14 +1017,14 @@ export default function ProcessCatalogue({
           />
         )
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((proc) => {
             const systems = Array.from(new Set(proc.steps.flatMap((s) => s.systems)));
             return (
               <button
                 key={proc.id}
                 onClick={() => onSelectProcess(proc)}
-                className="card text-left p-5 flex flex-col gap-3 cursor-pointer transition-all hover:shadow-lift hover:-translate-y-0.5"
+                className="card text-left p-5 flex flex-col gap-3 min-w-0 cursor-pointer transition-all hover:shadow-lift hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between gap-2">
                   <StatusChip status={proc.status} />
@@ -1039,7 +1047,7 @@ export default function ProcessCatalogue({
                   <span className="text-[11px] font-bold text-mute">{proc.completenessScore}%</span>
                 </div>
                 {systems.length > 0 && (
-                  <div className="text-[11px] text-faint truncate">{systems.join(' · ')}</div>
+                  <div className="text-[11px] text-faint truncate min-w-0 w-full">{systems.join(' · ')}</div>
                 )}
               </button>
             );

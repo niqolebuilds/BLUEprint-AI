@@ -797,11 +797,11 @@ export default function ProjectManagement({
               {currentTranscripts.map((tr) => (
                 <div key={tr.id} className="p-4 rounded-2xl bg-canvas border border-line space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <FileText size={15} className="text-veil-deep" />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <FileText size={15} className="text-veil-deep shrink-0" />
                       <span className="text-xs font-bold text-ink">{tr.title}</span>
                       <span className="chip bg-veil text-[10px]">{tr.date}</span>
-                      {tr.fileName && <span className="chip bg-blush text-[10px]">{tr.fileName}</span>}
+                      {tr.fileName && <span className="chip bg-blush text-[10px] max-w-[70vw] truncate">{tr.fileName}</span>}
                     </div>
                     <span className="text-[10px] text-faint">
                       Participants: {tr.participants.join(', ')}
@@ -1152,13 +1152,13 @@ export default function ProjectManagement({
         <>
         {/* Section 6: Project OKR */}
         <div className="card p-6 space-y-5">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
               <Target size={18} className="text-citron-deep" />
               <h3 className="font-display font-semibold text-base">Project OKR</h3>
             </div>
             {currentOkr && (
-              <span className="chip bg-veil border-line text-xs font-semibold">
+              <span className="chip bg-veil border-line text-xs font-semibold max-w-full whitespace-normal text-left">
                 {currentOkr.parentOkrLabel}
               </span>
             )}

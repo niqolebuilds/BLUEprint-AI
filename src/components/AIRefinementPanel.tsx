@@ -183,7 +183,7 @@ export default function AIRefinementPanel({
       {result && selected && !loading && (
         <div className="space-y-4 animate-fade-up">
           {/* Score + drivers */}
-          <div className="grid lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
             <div className="card bg-ink border-transparent text-white p-6 lg:col-span-2 flex flex-col justify-between">
               <div className="text-xs font-semibold text-white/60">Automation suitability</div>
               <div className="flex items-end gap-2 mt-2">

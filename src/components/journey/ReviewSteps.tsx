@@ -228,7 +228,7 @@ function ProcessEditor({
 
               {isOpen && (
                 <div className="px-4 pb-5 pt-1 border-t border-line animate-fade-up">
-                  <div className="grid sm:grid-cols-[1fr_220px] gap-4 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_220px] gap-4 mt-4">
                     <div>
                       <label className="label">Step name</label>
                       <input className="field !py-2" value={step.name} onChange={(e) => updateStep(step.id, { name: e.target.value })} placeholder="What happens in this step?" />
@@ -257,7 +257,7 @@ function ProcessEditor({
                       {step.aiRationale}
                     </div>
                   )}
-                  <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4">
                     <AttributeEditor label="Inputs" values={step.inputs} placeholder="e.g. Vendor invoice PDF" onChange={(v) => updateStep(step.id, { inputs: v })} />
                     <AttributeEditor label="Outputs" values={step.outputs} placeholder="e.g. Verified claims file" onChange={(v) => updateStep(step.id, { outputs: v })} />
                     <AttributeEditor label="Decision points" values={step.decisionPoints} placeholder="e.g. Does the tariff match?" onChange={(v) => updateStep(step.id, { decisionPoints: v })} />

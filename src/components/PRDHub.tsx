@@ -411,7 +411,7 @@ Make.com Scheduler: Rp 144.000 / month
             {/* Overlapping processes */}
             <div className="space-y-2 print:break-inside-avoid">
               <span className="text-[10px] font-bold text-mute tracking-wider uppercase">Consolidated Catalog Processes (Eliminating Redundancy)</span>
-              <div className="grid sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {currentEngine.overlappingProcesses.map((p) => (
                   <div key={p} className="p-3 bg-canvas-soft border border-line/55 rounded-xl flex items-center gap-2">
                     <CheckCircle size={13} className="text-emerald-600 shrink-0" />

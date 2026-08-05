@@ -266,7 +266,7 @@ export default function AdminPanel({
 
       {isRemoteEnabled() && <RemoteUserAdmin />}
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Processes captured" value={processes.length} hint={`${classifiedSteps} classified steps`} accent="citron" />
         <Stat label="Dataset completeness" value={`${avgCompleteness}%`} hint={`threshold ${READINESS_THRESHOLD}% for next stage`} />
         <Stat label="Ready for next stage" value={ready.length} hint="processes at threshold" accent="veil" />
@@ -289,7 +289,7 @@ export default function AdminPanel({
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Systems analytics */}
         <div className="card p-6">
           <h3 className="font-display font-semibold text-sm">Processes per system</h3>
@@ -369,7 +369,7 @@ export default function AdminPanel({
               </button>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="label text-xs font-semibold" htmlFor="sys-name">System/Tool Name</label>
                 <input
@@ -527,7 +527,7 @@ export default function AdminPanel({
                                 </button>
                               </div>
 
-                              <div className="grid sm:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                   <label className="label text-xs font-semibold" htmlFor={`sys-name-${sys.id}`}>System/Tool Name</label>
                                   <input
@@ -669,7 +669,7 @@ export default function AdminPanel({
         <h3 className="font-display font-semibold text-sm flex items-center gap-2">
           <Send size={15} className="text-veil-deep" /> Notify by level, line-of-work or individual
         </h3>
-        <div className="grid sm:grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <div>
             <label className="label" htmlFor="adm-type">Audience</label>
             <select

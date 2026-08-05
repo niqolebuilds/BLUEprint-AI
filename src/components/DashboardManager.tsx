@@ -60,13 +60,13 @@ export default function DashboardManager({
     <div className="animate-fade-up space-y-5">
       <h2 className="font-display text-xl font-semibold tracking-tight">Team space</h2>
 
-      <div className="grid sm:grid-cols-3 gap-4 print:break-inside-avoid">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 print:break-inside-avoid">
         <Stat label="Team completion" value={`${completionPct}%`} hint="of personnel fully documented" accent="citron" />
         <Stat label="High-effort workflows" value={highEffort.length} hint="flagged for improvement" accent="veil" />
         <Stat label="Guidance items" value={improvementItems.filter((i) => i.status !== 'Resolved').length} hint="open vs resolved tracked below" />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Personnel completion tracker */}
         <div className="card p-6 print:break-inside-avoid">
           <h3 className="font-display font-semibold text-sm flex items-center gap-2">
