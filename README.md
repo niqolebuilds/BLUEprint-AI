@@ -57,10 +57,53 @@ To enable Gemini, set `GEMINI_API_KEY` in `.env.local` (the server loads
 `.env.local` first, then `.env`). Override the model with `GEMINI_MODEL`
 (default `gemini-3.5-flash`).
 
+### ROI / TCO engine (group finance)
+
+Every process page's **AI Deployment Roadmap** section includes an ROI/TCO
+panel that compares AI document/process automation (Gemini) against RPA for
+a **group finance / shared-services** process — AP invoicing, intercompany
+reconciliation, month-end close support, management reporting, or tax &
+compliance docs (or any new process you configure the same way).
+
+It replaced an earlier naive model that compared an RPA license price
+directly against a raw Gemini token cost. Token/API cost is one line item —
+this engine computes a full **Total Cost of Ownership** (inference + human
+review labor + maintenance + infra + compliance + amortized integration
+build cost), separates **hard cash benefit** from **soft capacity value**
+(hours freed only count once scaled by a redeployment factor), subtracts
+error-rework cost, and computes payback on cumulative cash flow through a
+realistic adoption ramp (pilot → parallel-run → steady state) instead of an
+instant break-even. See:
+
+- `src/lib/roiTcoEngine.ts` — the calculation engine (pure TypeScript, no
+  UI/React dependency; every function is commented with the reasoning behind
+  it).
+- `src/lib/roiTcoDefaults.ts` — wires the pricing table + a process template
+  into the engine's input shape.
+- `src/data/pricingStandards.ts` — the shared "Daftar Harga Standar
+  Indonesia" cost-assumption table (also used by the Consolidated PRD Hub's
+  price sheet), with an inline comment on why each rate/default was chosen.
+- `src/data/financeProcessTemplates.ts` — the selectable/editable finance
+  process presets (config only — adding a 6th process needs no engine code
+  changes).
+- `src/components/FinanceRoiTcoPanel.tsx` — the in-app UI (scenario
+  comparison, cumulative cash-flow chart, RPA/AI/Hybrid comparison,
+  sensitivity callout, CSV export). It has its own "How this works" panel
+  explaining the model and every input.
+- `POST /api/finance/roi-tco` (`server.ts`) — a thin API wrapper around the
+  same engine module, for parity with the app's other calculation endpoints.
+
+Run `npm test` to execute the engine's test suite (`src/lib/roiTcoEngine.test.ts`,
+Node's built-in test runner via `tsx`), which asserts: token cost is never
+treated as TCO, soft capacity savings don't leak into hard-cash payback,
+payback lengthens as the parallel-run window grows, and the engine runs for
+multiple configured processes with zero code changes (config only).
+
 ### Other scripts
 
 ```bash
 npm run lint       # typecheck (tsc --noEmit)
+npm run test       # ROI/TCO engine test suite (node:test via tsx)
 npm run build      # production build (vite + esbuild server bundle)
 npm run start      # serve the production build
 ```
@@ -103,7 +146,10 @@ separate, larger change).
 `/api/ai/analyze` below) still runs on the Express server in `server.ts`,
 which a static Vercel deploy does not run — those endpoints will 404 on
 Vercel as configured here. Porting them to Vercel serverless functions
-(like `api/blueprint.ts` now is) is a separate piece of work.
+(like `api/blueprint.ts` now is) is a separate piece of work. The ROI/TCO
+engine's `POST /api/finance/roi-tco` route (also in `server.ts`) has the same
+limitation on Vercel — but it doesn't block the feature, since the in-app
+panel runs the same `src/lib/roiTcoEngine.ts` module directly client-side.
 
 ### Previously: Google Sheets + Apps Script
 

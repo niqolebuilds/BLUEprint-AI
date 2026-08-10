@@ -65,6 +65,13 @@ export interface Process {
   userOverrides?: Record<string, 'agentic-ai' | 'automation' | 'human-in-the-loop'>; // stepId -> classification
   manualRoleOverride?: string; // Dedicated role field for raw manual user input (bypassing AI/validation)
   savedDeploymentPlan?: DeploymentPlan;
+  /**
+   * Saved ROI/TCO engine state for this process (see src/lib/roiTcoEngine.ts
+   * and src/components/FinanceRoiTcoPanel.tsx). `any` here rather than a
+   * strict type to avoid a circular import between types.ts and the engine
+   * module — the panel component owns the actual shape.
+   */
+  savedRoiTco?: any;
 }
 
 export interface User {

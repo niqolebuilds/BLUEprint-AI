@@ -21,13 +21,10 @@ import {
   Copy,
   Check,
   Megaphone,
-  DollarSign,
-  TrendingUp,
   ShieldCheck,
   HeartHandshake,
   CreditCard,
   Activity,
-  Clock,
   Save,
   Download,
 } from 'lucide-react';
@@ -35,6 +32,7 @@ import { Persona, Process, SystemItem, DeploymentPlan } from '../types';
 import { SUBFUNCTIONS_LIST } from '../data/mockData';
 import { timeAgo } from '../lib/utils';
 import { Avatar, ClassChip, EmptyState, Meter, StatusChip } from './ui';
+import FinanceRoiTcoPanel from './FinanceRoiTcoPanel';
 
 function ProcessDetail({
   proc,
@@ -63,73 +61,25 @@ function ProcessDetail({
   const [expandedPhases, setExpandedPhases] = useState<number[]>([0]); // first phase open by default
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
-  // User-editable "Manual Effort Released" override (hours/mo) — lets the user
-  // recalculate ROI / savings / opex against a different volume assumption
-  // than the one the AI proposed. `null` = use the AI baseline as-is.
-  const [manualHoursOverride, setManualHoursOverride] = useState<number | null>(null);
-
-  // USD to IDR conversion (Rp 16.000 per USD)
+  // USD to IDR conversion — used below only for the roadmap's tool-subscription
+  // cost display. The ROI/TCO engine (FinanceRoiTcoPanel) uses its own
+  // configurable FX rate sourced from the shared pricing table.
   const toIDR = (usd: number) => usd * 16000;
   const formatIDR = (val: number) => {
     return 'Rp ' + Math.round(val).toLocaleString('id-ID');
   };
 
-  const baselineCB = plan?.costBenefitAnalysis;
-  const baselineManualHours = baselineCB?.manualHoursReducedPerMonth || 85;
-  const effectiveManualHours = manualHoursOverride ?? baselineManualHours;
-  const isManualHoursEdited = manualHoursOverride !== null && manualHoursOverride !== baselineManualHours;
-
-  /**
-   * Recompute Value/Cost/Benefit against the user-edited "Manual Effort
-   * Released" input. Savings scale linearly with hours released (hours ×
-   * an implied staff wage rate). Annual tooling & OPEX has a fixed
-   * subscription floor plus a volume-driven (token usage) share, since more
-   * automated volume means more API calls. ROI% and payback fall out of both.
-   */
-  const derivedCB = useMemo(() => {
-    if (!baselineCB) return null;
-    const baseSavingsUSD = baselineCB.estimatedAnnualSavingsUSD || 32000;
-    const baseOpexUSD = baselineCB.annualSubscriptionCostUSD || 2400;
-    const devCostUSD = baselineCB.developmentCostUSD || 6000;
-    const ratio = baselineManualHours > 0 ? effectiveManualHours / baselineManualHours : 1;
-
-    const estimatedAnnualSavingsUSD = Math.max(0, Math.round(baseSavingsUSD * ratio));
-    const variableShare = 0.65; // ~65% of opex tracks volume (tokens); ~35% is a fixed subscription floor
-    const annualSubscriptionCostUSD = Math.max(0, Math.round(baseOpexUSD * (1 - variableShare) + baseOpexUSD * variableShare * ratio));
-
-    const netAnnualBenefit = estimatedAnnualSavingsUSD - annualSubscriptionCostUSD;
-    const totalAnnualCost = devCostUSD + annualSubscriptionCostUSD;
-    const roiPercent = totalAnnualCost > 0 ? Math.round((netAnnualBenefit / totalAnnualCost) * 100) : 0;
-    const paybackPeriodMonths =
-      netAnnualBenefit > 0
-        ? Math.max(0.5, Math.round((devCostUSD / (netAnnualBenefit / 12)) * 10) / 10)
-        : baselineCB.paybackPeriodMonths || 3;
-
-    return {
-      ...baselineCB,
-      manualHoursReducedPerMonth: effectiveManualHours,
-      estimatedAnnualSavingsUSD,
-      annualSubscriptionCostUSD,
-      roiPercent,
-      paybackPeriodMonths,
-    };
-  }, [baselineCB, baselineManualHours, effectiveManualHours]);
-
-  // The plan actually rendered & saved — carries the live recalculation so a
-  // saved roadmap remembers the user's edited assumption.
-  const effectivePlan: DeploymentPlan | null = plan && derivedCB ? { ...plan, costBenefitAnalysis: derivedCB } : plan;
-
   const isRoadmapSaved = !!(
     proc.savedDeploymentPlan &&
-    effectivePlan &&
-    JSON.stringify(proc.savedDeploymentPlan) === JSON.stringify(effectivePlan)
+    plan &&
+    JSON.stringify(proc.savedDeploymentPlan) === JSON.stringify(plan)
   );
 
   const handleSaveRoadmap = () => {
-    if (effectivePlan && onSaveProcess) {
+    if (plan && onSaveProcess) {
       onSaveProcess({
         ...proc,
-        savedDeploymentPlan: effectivePlan,
+        savedDeploymentPlan: plan,
       });
     }
   };
@@ -187,7 +137,6 @@ function ProcessDetail({
       const data = await response.json();
       setPlan(data);
       setLastGeneratedKey(currentKey);
-      setManualHoursOverride(null); // fresh baseline — clear any prior edit
     } catch (err: any) {
       setErrorPlan(err.message || 'An error occurred while generating deployment options.');
     } finally {
@@ -205,7 +154,6 @@ function ProcessDetail({
       setLastGeneratedKey('');
     }
     setErrorPlan(null);
-    setManualHoursOverride(null); // don't leak one process's edit into another
   }, [proc.id, proc.savedDeploymentPlan]);
 
   // Pre-generate the plan if the process is refined/approved and we do not have a plan yet (and no saved plan exists)
@@ -517,124 +465,10 @@ function ProcessDetail({
               </div>
             </div>
 
-            {/* Value, Cost & Benefit Dashboard */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <TrendingUp size={14} className="text-citron-deep" />
-                  <h4 className="font-display font-semibold text-xs text-ink uppercase tracking-wider">
-                    Value, Cost, &amp; Benefit Analysis (IDR)
-                  </h4>
-                </div>
-                {isManualHoursEdited && (
-                  <span className="chip bg-citron-soft border-citron/40 text-citron-deep text-[10px] font-bold">
-                    Recalculated from edited effort
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {/* ROI Card */}
-                <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Return on Investment</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-lg font-bold text-ink">{(derivedCB?.roiPercent ?? 380) >= 0 ? '+' : ''}{derivedCB?.roiPercent ?? 380}%</span>
-                    <span className="text-[10px] text-emerald-600 font-semibold">ROI</span>
-                  </div>
-                  <div className="text-[10px] text-faint">
-                    Payback in <strong className="text-ink">{derivedCB?.paybackPeriodMonths ?? 3} months</strong>
-                  </div>
-                </div>
-
-                {/* Savings Card */}
-                <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Est. Annual Savings</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-base font-bold text-ink">{formatIDR(toIDR(derivedCB?.estimatedAnnualSavingsUSD ?? 32000))}</span>
-                  </div>
-                  <div className="text-[10px] text-faint">
-                    Ongoing labor &amp; error reduction
-                  </div>
-                </div>
-
-                {/* Labor Saved Card — editable: drives the recalculation below */}
-                <div className="bg-white border-2 border-citron/50 rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold flex items-center justify-between gap-1">
-                    Manual Effort Released
-                    {isManualHoursEdited && (
-                      <button
-                        type="button"
-                        onClick={() => setManualHoursOverride(null)}
-                        className="normal-case font-bold text-citron-deep hover:underline cursor-pointer"
-                        title="Reset to the AI-proposed baseline"
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </span>
-                  <div className="flex items-baseline gap-1">
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={effectiveManualHours}
-                      onChange={(e) => {
-                        const val = Math.max(0, Math.round(Number(e.target.value) || 0));
-                        setManualHoursOverride(val === baselineManualHours ? null : val);
-                      }}
-                      className="w-16 text-lg font-bold text-ink bg-transparent border-0 border-b-2 border-dashed border-line focus:border-citron-deep outline-none cursor-text"
-                      title="Edit to recalculate ROI, savings & OPEX"
-                    />
-                    <span className="text-[10px] text-mute">hours/mo</span>
-                  </div>
-                  <div className="text-[10px] text-faint">
-                    Re-allocated to high-value tasks · editable
-                  </div>
-                </div>
-
-                {/* Dev & Tooling Cost Card */}
-                <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Annual Tooling &amp; OPEX</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-base font-bold text-ink">{formatIDR(toIDR(derivedCB?.annualSubscriptionCostUSD ?? 2400))}</span>
-                  </div>
-                  <div className="text-[10px] text-faint leading-tight mt-0.5">
-                    Excludes one-time dev cost of {formatIDR(toIDR(derivedCB?.developmentCostUSD ?? 6000))}
-                  </div>
-                </div>
-              </div>
-
-              {/* ROI & Pricing Logic Explainer Card */}
-              <div className="bg-gradient-to-r from-emerald-50/50 via-teal-50/25 to-canvas-soft border border-emerald-100 rounded-2xl p-4.5 space-y-3.5 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 shrink-0 mt-0.5">
-                    <Sparkles size={14} />
-                  </div>
-                  <div className="space-y-1">
-                    <h5 className="text-xs font-semibold text-ink-soft">
-                      ROI &amp; Vertex AI (Gemini Suite) Cost Logic
-                    </h5>
-                    <p className="text-[11px] text-mute leading-relaxed">
-                      Traditional RPA robot licenses typically demand upwards of <strong className="text-ink-soft">Rp 2.400.000 to Rp 8.000.000</strong> per month. In comparison, <strong className="text-emerald-700">Google Vertex AI (Gemini Model Suite)</strong> uses consumption-based token pricing. For a standard healthcare finance flow processing 10.000 invoices/claims a month, Gemini 1.5 Flash uses less than <strong className="text-emerald-700">Rp 75.000 (approx. $4.50)</strong> total! This maximizes margins and enables an accelerated payback timeline.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-3.5 border-t border-emerald-100/60 text-[11px]">
-                  <div className="space-y-1">
-                    <span className="font-semibold text-emerald-800 block">Value Offered Formula</span>
-                    <span className="text-mute block leading-normal">Hours Released × Staff Wage Rate + Prevented Claim Denial Leakage</span>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="font-semibold text-emerald-800 block">Gemini API Advantage</span>
-                    <span className="text-mute block leading-normal">Pay-per-token API pricing replaces expensive fixed software bot licenses</span>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="font-semibold text-emerald-800 block">Fast Break-Even</span>
-                    <span className="text-mute block leading-normal">No heavy upfront capital infrastructure; initial payback reached in ~3 months</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* ROI / TCO Analysis — replaces the old naive "RPA license vs. raw
+                token cost" card with the full Total Cost of Ownership engine
+                (see src/lib/roiTcoEngine.ts). */}
+            <FinanceRoiTcoPanel proc={proc} onSaveProcess={onSaveProcess} />
 
             {/* 4-Phase Accordion */}
             <div className="space-y-2.5">

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Sparkles, FileText, Table, Users, Landmark, Layers, ArrowRight, Download, CheckCircle, Receipt, HardDrive, RefreshCw, X } from 'lucide-react';
 import { Process } from '../types';
+import { PRICING_STANDARDS, DEFAULT_FX_IDR_PER_USD } from '../data/pricingStandards';
 
-// Convert USD to IDR at 1 USD = Rp 16.000
-const toIDR = (usd: number) => usd * 16000;
+// Convert USD to IDR — shared FX assumption, also used by the ROI/TCO engine.
+const toIDR = (usd: number) => usd * DEFAULT_FX_IDR_PER_USD;
 
 const formatIDR = (val: number) => {
   if (val >= 1000000000) {
@@ -20,18 +21,9 @@ const formatIDR = (val: number) => {
   }).format(val);
 };
 
-// Pricing standards basis (in IDR)
-const PRICING_STANDARDS = [
-  { item: 'Google Gemini 1.5 Flash (Input)', rate: 'Rp 1.200', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Sangat hemat untuk ekstraksi data masal dan pencocokan teks terstruktur.' },
-  { item: 'Google Gemini 1.5 Flash (Output)', rate: 'Rp 4.800', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Digunakan untuk menyusun format jawaban JSON atau draf jurnal akun.' },
-  { item: 'Google Gemini 1.5 Pro (Input)', rate: 'Rp 20.000', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Ideal untuk analisis finansial mendalam dan penaksiran tren likuiditas.' },
-  { item: 'Google Gemini 1.5 Pro (Output)', rate: 'Rp 80.000', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Digunakan untuk menyusun komentar varians CAPEX dan narasi rekomendasi CFO.' },
-  { item: 'Jasa SMS OTP (Gateway Indonesia)', rate: 'Rp 350', unit: 'per sukses transaksi', category: 'Keamanan / Otentikasi', desc: 'Verifikasi keamanan dua langkah (MFA) bagi supervisor sebelum persetujuan.' },
-  { item: 'WhatsApp Business API Gateway', rate: 'Rp 450', unit: 'per sesi notifikasi', category: 'Keamanan / Otentikasi', desc: 'Mengirimkan alert verifikasi instan atau draf anomali ke manajer operasional.' },
-  { item: 'Make.com Workflow Scheduler', rate: 'Rp 144.000', unit: 'per bulan (Standard)', category: 'Orkestrasi', desc: 'Mengatur cron-job berkala, webhook trigger, dan sinkronisasi antar-sistem.' },
-  { item: 'Secure OCR Cloud (PDF.co)', rate: 'Rp 784.000', unit: 'per bulan', category: 'Ekstraksi Dokumen', desc: 'Mendigitalkan kuitansi, klaim medis, atau cetakan invoice beresolusi rendah.' },
-  { item: 'RPA Unattended Runner Runtime', rate: 'Rp 1.600.000', unit: 'per bulan', category: 'Otomasi Desktop', desc: 'Melakukan klik otomatis pada portal DJP PPN atau portal e-Claim BPJS.' },
-];
+// Pricing standards basis (in IDR) — sourced from the shared "Daftar Harga
+// Standar Indonesia" table (src/data/pricingStandards.ts) that also backs the
+// ROI/TCO engine, so both surfaces always agree on the same numbers.
 
 const BASE_ENGINES = [
   {
