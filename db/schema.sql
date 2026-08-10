@@ -53,3 +53,26 @@ CREATE TABLE IF NOT EXISTS audit_log (
   detail     text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Consolidated PRD & Engine Hub. Rows are soft-deleted (deleted_at) rather
+-- than removed so "Erase" is auditable and reversible at the DB level.
+CREATE TABLE IF NOT EXISTS prd_engines (
+  id                     uuid PRIMARY KEY,
+  title                  text NOT NULL,
+  icon_key               text NOT NULL DEFAULT 'Sparkles',
+  description            text NOT NULL DEFAULT '',
+  target_audience        text NOT NULL DEFAULT '',
+  master_users           text NOT NULL DEFAULT '',
+  ecosystem_apps         text NOT NULL DEFAULT '',
+  overlapping_processes  jsonb NOT NULL DEFAULT '[]',
+  capex_logic            text NOT NULL DEFAULT '',
+  opex_logic             text NOT NULL DEFAULT '',
+  metrics                jsonb NOT NULL DEFAULT '{}',
+  specifications         jsonb NOT NULL DEFAULT '[]',
+  is_seed                boolean NOT NULL DEFAULT false,
+  created_by             text NOT NULL DEFAULT '',
+  deleted_at             timestamptz,
+  created_at             timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS prd_engines_active_idx ON prd_engines(deleted_at);

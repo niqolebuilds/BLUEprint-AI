@@ -61,6 +61,7 @@ To enable Gemini, set `GEMINI_API_KEY` in `.env.local` (the server loads
 
 ```bash
 npm run lint       # typecheck (tsc --noEmit)
+npm run test       # unit tests (vitest)
 npm run build      # production build (vite + esbuild server bundle)
 npm run start      # serve the production build
 ```
@@ -80,8 +81,9 @@ connection-string handling.
    in **Project Settings → Environment Variables** as `AUTH_TOKEN_SECRET`.
    This signs login sessions; it's unrelated to the database.
 3. Add one more environment variable: `VITE_ENABLE_REMOTE_AUTH` = `true`.
-4. Redeploy. The database tables (`users`, `processes`, `audit_log`) are
-   created automatically on first request — no migration step to run.
+4. Redeploy. The database tables (`users`, `processes`, `audit_log`,
+   `prd_engines`) are created automatically on first request — no migration
+   step to run.
 5. Open the deployed site. You'll land on a sign-in screen; click **"First
    time setting this up? Create the Admin account"**, enter your name and
    email, and you'll get a username + one-time temporary password (shown
@@ -98,6 +100,14 @@ later local edits) for directorate roll-up visibility via the dashboard API
 endpoints in `api/_lib/actions.ts` (not yet wired into the React app's own
 dashboard screens — those still read local state; wiring them up is a
 separate, larger change).
+
+**PRD Engine Hub:** "Sync New Processes" and "Erase" on the Consolidated PRD
+& Engine Hub read/write Postgres's `prd_engines` table via `listPrdEngines` /
+`syncPrdEngines` / `deletePrdEngine` (see `api/_lib/prdEngine.ts` for the
+generation step and `src/lib/prdEngineLocal.ts` for the `localStorage`
+fallback used when `VITE_ENABLE_REMOTE_AUTH` is unset). The "generation" step
+is a deterministic consolidation heuristic, not an LLM call — swapping in a
+Gemini-backed version later only requires changing `generatePrdEngine()`.
 
 **Known limitation:** the AI mining/refinement engine (`/api/ai/mine`,
 `/api/ai/analyze` below) still runs on the Express server in `server.ts`,

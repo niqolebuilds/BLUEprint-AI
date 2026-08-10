@@ -129,3 +129,49 @@ export function adminSetRemoteActive(token: string, username: string, active: bo
 export function adminExportRemoteCsv(token: string) {
   return callApi<string>('adminExportCsv', token);
 }
+
+/* ============================== PRD Engine Hub ============================= */
+
+export interface PrdEngineMetrics {
+  volume: string;
+  effort: string;
+  annualSavings: string;
+  payback: string;
+}
+
+export interface PrdEngineRecord {
+  id: string;
+  title: string;
+  iconKey: string;
+  description: string;
+  targetAudience: string;
+  masterUsers: string;
+  ecosystemApps: string;
+  overlappingProcesses: string[];
+  capexLogic: string;
+  opexLogic: string;
+  metrics: PrdEngineMetrics;
+  specifications: string[];
+  isSeed: boolean;
+  createdAt: string;
+}
+
+export interface CatalogueProcessRef {
+  id?: string;
+  title: string;
+}
+
+/** Reads the persisted, org-wide engine list from Postgres — the source of truth. */
+export function listRemotePrdEngines(token: string) {
+  return callApi<PrdEngineRecord[]>('listPrdEngines', token);
+}
+
+/** Soft-deletes server-side; the row is gone on every subsequent list call, including after logout/login. */
+export function deleteRemotePrdEngine(token: string, id: string) {
+  return callApi<{ ok: true }>('deletePrdEngine', token, { id });
+}
+
+/** Runs the consolidation/generation step server-side and persists the result if one was produced. */
+export function syncRemotePrdEngines(token: string, processes: CatalogueProcessRef[]) {
+  return callApi<{ created: boolean; engine: PrdEngineRecord | null }>('syncPrdEngines', token, { processes });
+}
