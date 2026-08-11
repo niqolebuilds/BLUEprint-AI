@@ -1,5 +1,5 @@
 /**
- * Run with: npm test  (== vitest run — picks up every **/*.test.ts, per vitest.config.ts)
+ * Run with: npm test (vitest run — picks up every *.test.ts file per vitest.config.ts)
  *
  * These assertions exist to keep the engine honest as it evolves — they
  * encode the four non-negotiable properties called out when this engine was
