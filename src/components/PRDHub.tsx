@@ -10,23 +10,15 @@ import {
 } from '../lib/blueprintApi';
 import { loadPrdEngines, deletePrdEngineLocal, syncPrdEnginesLocal } from '../lib/prdEngineLocal';
 import { PRD_ENGINE_ICONS } from '../data/prdEngineSeed';
+import { PRICING_STANDARDS } from '../data/pricingStandards';
 
 function getRemoteToken(): string | null {
   return sessionStorage.getItem('bp_remote_token');
 }
 
-// Pricing standards basis (in IDR) — static reference table, unrelated to engine persistence.
-const PRICING_STANDARDS = [
-  { item: 'Google Gemini 1.5 Flash (Input)', rate: 'Rp 1.200', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Sangat hemat untuk ekstraksi data masal dan pencocokan teks terstruktur.' },
-  { item: 'Google Gemini 1.5 Flash (Output)', rate: 'Rp 4.800', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Digunakan untuk menyusun format jawaban JSON atau draf jurnal akun.' },
-  { item: 'Google Gemini 1.5 Pro (Input)', rate: 'Rp 20.000', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Ideal untuk analisis finansial mendalam dan penaksiran tren likuiditas.' },
-  { item: 'Google Gemini 1.5 Pro (Output)', rate: 'Rp 80.000', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Digunakan untuk menyusun komentar varians CAPEX dan narasi rekomendasi CFO.' },
-  { item: 'Jasa SMS OTP (Gateway Indonesia)', rate: 'Rp 350', unit: 'per sukses transaksi', category: 'Keamanan / Otentikasi', desc: 'Verifikasi keamanan dua langkah (MFA) bagi supervisor sebelum persetujuan.' },
-  { item: 'WhatsApp Business API Gateway', rate: 'Rp 450', unit: 'per sesi notifikasi', category: 'Keamanan / Otentikasi', desc: 'Mengirimkan alert verifikasi instan atau draf anomali ke manajer operasional.' },
-  { item: 'Make.com Workflow Scheduler', rate: 'Rp 144.000', unit: 'per bulan (Standard)', category: 'Orkestrasi', desc: 'Mengatur cron-job berkala, webhook trigger, dan sinkronisasi antar-sistem.' },
-  { item: 'Secure OCR Cloud (PDF.co)', rate: 'Rp 784.000', unit: 'per bulan', category: 'Ekstraksi Dokumen', desc: 'Mendigitalkan kuitansi, klaim medis, atau cetakan invoice beresolusi rendah.' },
-  { item: 'RPA Unattended Runner Runtime', rate: 'Rp 1.600.000', unit: 'per bulan', category: 'Otomasi Desktop', desc: 'Melakukan klik otomatis pada portal DJP PPN atau portal e-Claim BPJS.' },
-];
+// Pricing standards basis (in IDR) — sourced from the shared "Daftar Harga
+// Standar Indonesia" table (src/data/pricingStandards.ts) that also backs the
+// ROI/TCO engine, so both surfaces always agree on the same numbers.
 
 interface PRDHubProps {
   processes: Process[];

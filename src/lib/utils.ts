@@ -162,3 +162,17 @@ export function initials(name: string): string {
     .map((w) => w[0]!.toUpperCase())
     .join('');
 }
+
+/** Full "Rp 1.234.567" style IDR formatting — shared by the ROI/TCO panel. */
+export function formatIDR(val: number): string {
+  return 'Rp ' + Math.round(val).toLocaleString('id-ID');
+}
+
+/** Compact "Rp 1,2 Juta" / "Rp 3,4 Miliar" formatting for tight card layouts. */
+export function formatIDRCompact(val: number): string {
+  const sign = val < 0 ? '-' : '';
+  const abs = Math.abs(val);
+  if (abs >= 1_000_000_000) return `${sign}Rp ${(abs / 1_000_000_000).toFixed(2)} Miliar`;
+  if (abs >= 1_000_000) return `${sign}Rp ${(abs / 1_000_000).toFixed(1)} Juta`;
+  return `${sign}Rp ${Math.round(abs).toLocaleString('id-ID')}`;
+}
