@@ -1,5 +1,5 @@
 /**
- * Run with: npm test  (== tsx --test src/lib/roiTcoEngine.test.ts)
+ * Run with: npm test  (== vitest run — picks up every **/*.test.ts, per vitest.config.ts)
  *
  * These assertions exist to keep the engine honest as it evolves — they
  * encode the four non-negotiable properties called out when this engine was
@@ -8,7 +8,7 @@
  * the engine is genuinely config-driven rather than hardcoded to one process.
  */
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { runRoiTcoEngine, RoiEngineConfig } from './roiTcoEngine';

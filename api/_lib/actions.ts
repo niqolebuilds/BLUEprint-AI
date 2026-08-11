@@ -11,6 +11,12 @@ import {
   verifyPassword,
   TokenPayload,
 } from './auth.js';
+import {
+  CatalogueProcessRef,
+  PrdEngineRecord,
+  SEED_PRD_ENGINES,
+  generatePrdEngine,
+} from './prdEngine.js';
 
 type Sql = NeonQueryFunction<false, false>;
 
@@ -76,6 +82,26 @@ async function ensureSchema(sql: Sql): Promise<void> {
       detail     text NOT NULL DEFAULT '',
       created_at timestamptz NOT NULL DEFAULT now()
     )`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS prd_engines (
+      id                     uuid PRIMARY KEY,
+      title                  text NOT NULL,
+      icon_key               text NOT NULL DEFAULT 'Sparkles',
+      description            text NOT NULL DEFAULT '',
+      target_audience        text NOT NULL DEFAULT '',
+      master_users           text NOT NULL DEFAULT '',
+      ecosystem_apps         text NOT NULL DEFAULT '',
+      overlapping_processes  jsonb NOT NULL DEFAULT '[]',
+      capex_logic            text NOT NULL DEFAULT '',
+      opex_logic             text NOT NULL DEFAULT '',
+      metrics                jsonb NOT NULL DEFAULT '{}',
+      specifications         jsonb NOT NULL DEFAULT '[]',
+      is_seed                boolean NOT NULL DEFAULT false,
+      created_by             text NOT NULL DEFAULT '',
+      deleted_at             timestamptz,
+      created_at             timestamptz NOT NULL DEFAULT now()
+    )`;
+  await sql`CREATE INDEX IF NOT EXISTS prd_engines_active_idx ON prd_engines(deleted_at)`;
   schemaReady = true;
 }
 
@@ -498,6 +524,119 @@ async function apiAdminExportCsv(sql: Sql, token: string | undefined) {
   return lines.join('\n');
 }
 
+/* ============================== PRD Engine API ============================= */
+/* Single persistent source of truth for the "Hub PRD & Engine Terkonsolidasi":
+   Postgres, read fresh on every load, written through on every mutation.
+   Rows are shared org-wide (like `processes`), not per-user — the hub shows
+   one consolidated architecture set, not a personal scratchpad. */
+
+function rowToPrdEngine(r: any): PrdEngineRecord {
+  const asArray = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') {
+      try {
+        const parsed = JSON.parse(v);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+  const asObject = (v: unknown): any => {
+    if (v && typeof v === 'object') return v;
+    if (typeof v === 'string') {
+      try {
+        return JSON.parse(v);
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  };
+  return {
+    id: r.id,
+    title: r.title,
+    iconKey: r.icon_key,
+    description: r.description,
+    targetAudience: r.target_audience,
+    masterUsers: r.master_users,
+    ecosystemApps: r.ecosystem_apps,
+    overlappingProcesses: asArray(r.overlapping_processes),
+    capexLogic: r.capex_logic,
+    opexLogic: r.opex_logic,
+    metrics: asObject(r.metrics),
+    specifications: asArray(r.specifications),
+    isSeed: !!r.is_seed,
+    createdAt: new Date(r.created_at).toISOString(),
+  };
+}
+
+async function insertPrdEngine(sql: Sql, engine: PrdEngineRecord, createdBy: string): Promise<void> {
+  await sql`
+    INSERT INTO prd_engines (
+      id, title, icon_key, description, target_audience, master_users, ecosystem_apps,
+      overlapping_processes, capex_logic, opex_logic, metrics, specifications, is_seed, created_by
+    ) VALUES (
+      ${engine.id}, ${engine.title}, ${engine.iconKey}, ${engine.description}, ${engine.targetAudience},
+      ${engine.masterUsers}, ${engine.ecosystemApps}, ${JSON.stringify(engine.overlappingProcesses)}::jsonb,
+      ${engine.capexLogic}, ${engine.opexLogic}, ${JSON.stringify(engine.metrics)}::jsonb,
+      ${JSON.stringify(engine.specifications)}::jsonb, ${engine.isSeed}, ${createdBy}
+    )`;
+}
+
+/** Runs once against an empty table — never overwrites rows a user has since deleted or added. */
+async function ensurePrdEngineSeed(sql: Sql): Promise<void> {
+  const rows = await sql`SELECT count(*)::int AS n FROM prd_engines`;
+  if (Number(rows[0]?.n) > 0) return;
+  for (const seed of SEED_PRD_ENGINES) {
+    await insertPrdEngine(sql, { ...seed, createdAt: new Date().toISOString() }, 'SYSTEM');
+  }
+}
+
+async function apiListPrdEngines(sql: Sql, token: string | undefined): Promise<PrdEngineRecord[]> {
+  requireAuth(token);
+  await ensurePrdEngineSeed(sql);
+  const rows = await sql`SELECT * FROM prd_engines WHERE deleted_at IS NULL ORDER BY created_at ASC`;
+  return rows.map(rowToPrdEngine);
+}
+
+async function apiDeletePrdEngine(sql: Sql, token: string | undefined, id: string) {
+  const payload = requireAdmin(token);
+  if (!id) throw new Error('Missing engine id.');
+  const rows = await sql`UPDATE prd_engines SET deleted_at = now() WHERE id = ${id} AND deleted_at IS NULL RETURNING id`;
+  if (rows.length === 0) throw new Error('Architecture not found (it may already be deleted).');
+  await logAudit(sql, payload.u, 'DELETE_PRD_ENGINE', id);
+  return { ok: true };
+}
+
+interface SyncPrdEnginesPayload {
+  processes?: CatalogueProcessRef[];
+}
+
+async function apiSyncPrdEngines(sql: Sql, token: string | undefined, payload: SyncPrdEnginesPayload) {
+  const authPayload = requireAuth(token);
+  await ensurePrdEngineSeed(sql);
+  const catalogueProcesses = Array.isArray(payload?.processes) ? payload.processes : [];
+
+  const existingRows = await sql`SELECT overlapping_processes FROM prd_engines WHERE deleted_at IS NULL`;
+  const existingEngines = existingRows.map((r) => ({
+    overlappingProcesses: (Array.isArray(r.overlapping_processes)
+      ? r.overlapping_processes
+      : JSON.parse(String(r.overlapping_processes || '[]'))) as string[],
+  }));
+
+  const result = generatePrdEngine(existingEngines, catalogueProcesses);
+  if (!result.created || !result.engine) {
+    await logAudit(sql, authPayload.u, 'SYNC_PRD_ENGINE_NOOP', `0 new / ${catalogueProcesses.length} scanned`);
+    return { created: false, engine: null };
+  }
+
+  await insertPrdEngine(sql, result.engine, authPayload.u);
+  await logAudit(sql, authPayload.u, 'SYNC_PRD_ENGINE', `${result.engine.id} - ${result.unmappedCount} process(es)`);
+  return { created: true, engine: result.engine };
+}
+
 /* ================================== Router ================================= */
 
 export async function routeAction(action: string, token: string | undefined, payload: any = {}): Promise<unknown> {
@@ -526,6 +665,12 @@ export async function routeAction(action: string, token: string | undefined, pay
       return apiAdminSetActive(sql, token, payload.username, payload.active);
     case 'adminExportCsv':
       return apiAdminExportCsv(sql, token);
+    case 'listPrdEngines':
+      return apiListPrdEngines(sql, token);
+    case 'deletePrdEngine':
+      return apiDeletePrdEngine(sql, token, payload.id);
+    case 'syncPrdEngines':
+      return apiSyncPrdEngines(sql, token, payload);
     default:
       throw new Error('Unknown action: ' + action);
   }
