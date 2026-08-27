@@ -136,12 +136,16 @@ export interface MonthRow {
   };
   benefit: {
     hardCashSavingsIDR: number;
-    softCapacityValueIDR: number;
+    avoidedOldProcessCostIDR: number; // the old process's cost you stop paying once it's decommissioned — see monthlyBenefit()
     leakageCaptureIDR: number;
     errorReworkCostIDR: number; // positive number, subtracted in totalIDR
-    totalIDR: number;
+    /** Reported for visibility (line item, CSV export) but NOT part of totalIDR —
+     *  see the "man-hours saved" note above monthlyBenefit() for why it's kept
+     *  out of the cash-driven payback/NPV math. */
+    softCapacityValueIDR: number;
+    totalIDR: number; // hardCash + avoidedOldProcessCost + leakageCapture - errorRework (soft capacity excluded on purpose)
   };
-  oldProcessCostIDR: number; // >0 only while still running in parallel
+  oldProcessCostIDR: number; // >0 only while still running in parallel (the double-running cost, not the avoided-cost benefit)
   netCashFlowIDR: number; // benefit.totalIDR - tco.totalIDR - oldProcessCostIDR
   cumulativeCashFlowIDR: number;
 }
@@ -156,10 +160,45 @@ export interface OptionSummary {
   avgMonthlyBenefit: MonthRow['benefit'];
 }
 
+/**
+ * A dead-simple "what would this cost to build and keep running" answer,
+ * deliberately decoupled from the scenario/ramp/payback machinery above —
+ * no discounting, no adoption curve, just: one-time build cost, and the
+ * monthly/annual run cost once the process is fully live at 100% volume
+ * and full accuracy (the base scenario, un-ramped).
+ */
+export interface BuildRunCostSummary {
+  oneTimeBuildCostIDR: number;
+  monthlyRunCost: {
+    inferenceCostIDR: number;
+    laborCostIDR: number;
+    maintenanceCostIDR: number;
+    infraCostIDR: number;
+    complianceCostIDR: number;
+    totalIDR: number; // excludes the one-time build cost — that's reported separately, not amortized
+  };
+  annualRunCostIDR: number; // monthlyRunCost.totalIDR * 12
+}
+
+/**
+ * Man-hours saved, reported as its own calculation — hours, not folded into
+ * a cash figure the reader has to untangle from payback. The monetized
+ * "redeployed value" is included for reference but is explicitly informational: see monthlyBenefit().
+ */
+export interface ManHoursSavedSummary {
+  hoursPerMonth: number; // softCapacityHoursPerMonth, at full (un-ramped) realization
+  hoursPerYear: number;
+  redeploymentFactor: number; // 0-1, share assumed to convert into real redeployed output
+  redeployedValueMonthlyIDR: number; // hoursPerMonth * redeploymentFactor * softCapacityHourlyValueIDR — informational only
+  redeployedValueAnnualIDR: number;
+}
+
 export interface RoiEngineResult {
   scenarios: Record<ScenarioName, OptionSummary>; // the AI option, across scenarios
   rpaOnly: OptionSummary; // RPA option, base scenario
   hybrid: OptionSummary; // AI + orchestration option, base scenario
+  buildAndRunCost: BuildRunCostSummary;
+  manHoursSaved: ManHoursSavedSummary;
   sensitivity: {
     inputKey: keyof ScenarioMultipliers;
     inputLabel: string;
@@ -305,12 +344,18 @@ function monthlyBenefit(
 
   const hardCashSavingsIDR = benefit.hardCashSavingsMonthlyIDR * realization;
 
-  // Soft capacity is explicitly NOT cash — "hours freed x wage" only enters the
-  // benefit stack after being scaled by redeploymentFactor (default 0.4),
-  // which represents the share of freed hours that actually convert into
-  // redeployed, value-generating capacity rather than idle slack.
-  const softCapacityValueIDR =
-    benefit.softCapacityHoursPerMonth * realization * benefit.redeploymentFactor * benefit.softCapacityHourlyValueIDR;
+  // THE MAIN AVOIDED COST: while the old and new processes run in parallel
+  // (month <= ramp.parallelRunMonths), you're paying for both — that cost is
+  // charged separately as `oldProcessCostIDR` in runOption(), not a benefit.
+  // Once the parallel run ends, the old process is decommissioned and you
+  // stop paying oldProcessMonthlyCostIDR — THAT'S the benefit, scaled by how
+  // much volume has actually shifted over (realization). Previously this
+  // number was never converted into a benefit at all: it only ever added a
+  // temporary cost during the parallel-run window and then vanished for the
+  // rest of the horizon, so typing a bigger "old process cost" barely moved
+  // payback/NPV and never moved "Total benefit" — it looked like the
+  // calculator was ignoring the input. This is that fix.
+  const avoidedOldProcessCostIDR = month > ramp.parallelRunMonths ? cfg.oldProcessMonthlyCostIDR * realization : 0;
 
   const leakageCaptureIDR =
     benefit.addressableLeakageMonthlyIDR *
@@ -320,9 +365,20 @@ function monthlyBenefit(
 
   const errorReworkCostIDR = docsThisMonth * (1 - accuracy) * benefit.costPerErrorIDR;
 
-  const totalIDR = hardCashSavingsIDR + softCapacityValueIDR + leakageCaptureIDR - errorReworkCostIDR;
+  // Man-hours saved ("soft capacity") is reported per month for the line-item
+  // display and CSV export, but is NOT part of totalIDR — see
+  // ManHoursSavedSummary / computeManHoursSaved() for the dedicated,
+  // decoupled calculation. Hours freed are an operational fact regardless of
+  // whether they get redeployed into real output; blending a haircut-by-
+  // redeploymentFactor guess into the cash-driven payback number just makes
+  // both numbers harder to trust. (Kept computed here only so a future
+  // month-by-month hours chart doesn't need re-plumbing.)
+  const softCapacityValueIDR =
+    benefit.softCapacityHoursPerMonth * realization * benefit.redeploymentFactor * benefit.softCapacityHourlyValueIDR;
 
-  return { hardCashSavingsIDR, softCapacityValueIDR, leakageCaptureIDR, errorReworkCostIDR, totalIDR };
+  const totalIDR = hardCashSavingsIDR + avoidedOldProcessCostIDR + leakageCaptureIDR - errorReworkCostIDR;
+
+  return { hardCashSavingsIDR, avoidedOldProcessCostIDR, leakageCaptureIDR, errorReworkCostIDR, softCapacityValueIDR, totalIDR };
 }
 
 // ---------------------------------------------------------------------------
@@ -346,6 +402,7 @@ function sumBenefit(rows: MonthRow['benefit'][]): MonthRow['benefit'] {
   const n = rows.length || 1;
   return {
     hardCashSavingsIDR: rows.reduce((s, r) => s + r.hardCashSavingsIDR, 0) / n,
+    avoidedOldProcessCostIDR: rows.reduce((s, r) => s + r.avoidedOldProcessCostIDR, 0) / n,
     softCapacityValueIDR: rows.reduce((s, r) => s + r.softCapacityValueIDR, 0) / n,
     leakageCaptureIDR: rows.reduce((s, r) => s + r.leakageCaptureIDR, 0) / n,
     errorReworkCostIDR: rows.reduce((s, r) => s + r.errorReworkCostIDR, 0) / n,
@@ -472,6 +529,57 @@ function computeSensitivity(cfg: RoiEngineConfig): RoiEngineResult['sensitivity'
 }
 
 // ---------------------------------------------------------------------------
+// "How much to build and run this" — a simple, decoupled answer. No ramp, no
+// discounting, no scenario multipliers: just the one-time build cost and the
+// monthly/annual run cost once the process is fully live. This exists
+// because payback/NPV answer "is this worth doing", not "what does it cost
+// us" — leadership usually wants that second, much simpler question
+// answered on its own, without wading through 20 assumption fields to get it.
+// ---------------------------------------------------------------------------
+
+function computeBuildAndRunCost(cfg: RoiEngineConfig): BuildRunCostSummary {
+  const base = SCENARIO_MULTIPLIERS.base;
+  // Full volume, month 1, with amortization/ramp switched off by asking for
+  // the steady-state shape directly rather than reading it off any specific
+  // ramped month.
+  const docsAtFullVolume = cfg.volume.docsPerMonth;
+  const steadyState = aiMonthlyTco(cfg, cfg.ops.amortizationMonths + 1, base, docsAtFullVolume); // month past amortization => buildCostAmortizedIDR is 0
+
+  const monthlyRunCost = {
+    inferenceCostIDR: steadyState.inferenceCostIDR,
+    laborCostIDR: steadyState.laborCostIDR,
+    maintenanceCostIDR: steadyState.maintenanceCostIDR,
+    infraCostIDR: steadyState.infraCostIDR,
+    complianceCostIDR: steadyState.complianceCostIDR,
+    totalIDR: steadyState.totalIDR, // buildCostAmortizedIDR is 0 here, so this is pure run cost
+  };
+
+  return {
+    oneTimeBuildCostIDR: cfg.ops.buildCostIDR,
+    monthlyRunCost,
+    annualRunCostIDR: monthlyRunCost.totalIDR * 12,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Man-hours saved — its own calculation, on purpose. See the comment on
+// ManHoursSavedSummary and the softCapacityValueIDR note in monthlyBenefit().
+// ---------------------------------------------------------------------------
+
+function computeManHoursSaved(cfg: RoiEngineConfig): ManHoursSavedSummary {
+  const { benefit } = cfg;
+  const hoursPerMonth = benefit.softCapacityHoursPerMonth; // full realization — this is the steady-state figure, not ramped
+  const redeployedValueMonthlyIDR = hoursPerMonth * benefit.redeploymentFactor * benefit.softCapacityHourlyValueIDR;
+  return {
+    hoursPerMonth,
+    hoursPerYear: hoursPerMonth * 12,
+    redeploymentFactor: benefit.redeploymentFactor,
+    redeployedValueMonthlyIDR,
+    redeployedValueAnnualIDR: redeployedValueMonthlyIDR * 12,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
 
@@ -489,6 +597,8 @@ export function runRoiTcoEngine(cfg: RoiEngineConfig): RoiEngineResult {
     scenarios,
     rpaOnly,
     hybrid,
+    buildAndRunCost: computeBuildAndRunCost(cfg),
+    manHoursSaved: computeManHoursSaved(cfg),
     sensitivity: computeSensitivity(cfg),
   };
 }
