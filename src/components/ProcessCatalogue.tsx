@@ -33,6 +33,7 @@ import { SUBFUNCTIONS_LIST } from '../data/mockData';
 import { timeAgo } from '../lib/utils';
 import { Avatar, ClassChip, EmptyState, Meter, StatusChip } from './ui';
 import FinanceRoiTcoPanel from './FinanceRoiTcoPanel';
+import VprsPdfPanel from './VprsPdfPanel';
 
 function ProcessDetail({
   proc,
@@ -639,6 +640,11 @@ function ProcessDetail({
                 </div>
               </div>
             </div>
+
+            {/* VPRS Pack — turns this process + the roadmap above into the
+                print-ready procurement/vendor document (see
+                src/components/VprsPdfPanel.tsx and api/_lib/vprsPdf.ts). */}
+            <VprsPdfPanel proc={proc} plan={plan} />
           </div>
         )}
       </div>

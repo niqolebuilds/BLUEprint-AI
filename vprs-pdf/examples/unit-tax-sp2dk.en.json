@@ -1,0 +1,1314 @@
+{
+  "$schema": "../schema/vprs.schema.json",
+  "meta": {
+    "projectId": "BP-TAX-014",
+    "catalogRef": "PC-FIN-TAX-07 — Unit Tax Compliance Review & SP2DK Support",
+    "title": "Unit Tax Compliance Review & SP2DK Support",
+    "solutionType": "AI / Agentic AI",
+    "version": "1.0 — Issued for Vendor Quotation",
+    "status": "Draft for Vendor RFP",
+    "businessUnit": "Group Finance — Tax Management (Head Office) & Unit Finance",
+    "processOwner": "Group Tax Manager",
+    "technicalOwner": "Head of Finance Systems / System Accountant",
+    "preparedBy": "Blueprint AI — Production Readiness Module",
+    "issueDate": "2026-08-27",
+    "classification": "Confidential — Vendor Distribution Under NDA",
+    "readinessScore": "91%",
+    "language": "en",
+    "organisation": "Siloam Hospitals Group"
+  },
+  "overview": {
+    "problem": "SP2DK (Surat Permintaan Penjelasan atas Data dan/atau Keterangan) letters arrive at hospital units from their local KPP with a 14-calendar-day response window. Preparing a defensible response requires reconstructing an equalisation between reported revenue, VAT bases, withholding tax objects and the general ledger — data that sits in at least four systems. Unit finance teams routinely consume 3–5 working days of senior time per letter, and under time pressure some responses are submitted with incomplete evidence, which materially raises the probability of escalation to a full tax audit (pemeriksaan).",
+    "objectives": [
+      "Reduce median SP2DK response preparation time from 3–5 working days to under 1 working day of reviewer effort.",
+      "Guarantee that no SP2DK response leaves the Group without a complete, source-referenced evidence pack.",
+      "Detect the equalisation gaps that trigger SP2DK proactively, on a quarterly cycle, before DJP raises them.",
+      "Produce a consistent, auditable position across all hospital entities for the same class of tax question."
+    ],
+    "currentState": "Manual. The unit tax officer reads the letter, interprets the data DJP is questioning, requests extracts from Finance Systems, builds an equalisation worksheet in Excel, drafts the tanggapan letter in Word, and circulates for review by email. There is no group-level register of open SP2DK, no standard evidence pack, and no reuse of positions previously argued successfully at another unit.",
+    "targetState": "An agentic workflow ingests the SP2DK, classifies the tax issue, retrieves and reconciles the supporting data, drafts a fully cited response pack, and presents it to the Unit Financial Controller and Group Tax Manager for review and approval. The agent never transmits anything to DJP. Submission through Coretax remains a deliberate human act.",
+    "volumetrics": [
+      {
+        "metric": "Hospital entities / branch NPWPs in scope",
+        "value": "Phase 1: 6 units · Full rollout: all Group entities"
+      },
+      {
+        "metric": "SP2DK received (Group, trailing 12 months)",
+        "value": "To be confirmed from Group Tax register — see OQ-002"
+      },
+      {
+        "metric": "Peak concurrency",
+        "value": "Assume 8 concurrent open SP2DK across the Group"
+      },
+      {
+        "metric": "Statutory response window",
+        "value": "14 calendar days from the date of the SP2DK"
+      },
+      {
+        "metric": "Evidence retention obligation",
+        "value": "10 years (UU KUP Art. 28(11))"
+      }
+    ]
+  },
+  "solution": {
+    "summary": "A supervised agentic AI caseworker for SP2DK response preparation and pre-emptive equalisation review. The agent operates as a retrieval-and-drafting specialist over Group tax and finance data, with a hard stop before any external filing action.",
+    "autonomyLevel": "Level 2 — Agent executes multi-step retrieval, reconciliation and drafting. Every externally visible artefact requires named human approval. No write-back to any system of record and no transmission to DJP.",
+    "agentPattern": "Plan → Retrieve → Reconcile → Draft → Cite → Escalate for approval. Deterministic tools perform all arithmetic; the language model performs classification, evidence selection and narrative drafting only.",
+    "components": [
+      {
+        "component": "SP2DK Intake & Classifier",
+        "responsibility": "Parse the inbound letter (PDF/scan/Coretax export), extract KPP, letter number, date, entity NPWP, tax period, and the specific data points DJP is questioning. Classify into one of the defined issue archetypes."
+      },
+      {
+        "component": "Evidence Retrieval Tools",
+        "responsibility": "Deterministic connectors that query the ERP general ledger, the SPT archive, the e-Faktur/e-Bupot extracts and the HIS revenue detail for the identified entity and period."
+      },
+      {
+        "component": "Equalisation Engine",
+        "responsibility": "Deterministic calculation service. Performs the revenue-to-VAT-base and expense-to-withholding-object reconciliations and returns a variance schedule with line-level traceability. No LLM arithmetic."
+      },
+      {
+        "component": "Response Drafter",
+        "responsibility": "Generates the tanggapan letter narrative and the evidence index, in Bahasa Indonesia, in the Group's approved format, with a mandatory source citation against every figure asserted."
+      },
+      {
+        "component": "Case & SLA Manager",
+        "responsibility": "Maintains the group SP2DK register, tracks the 14-day clock, drives reminders and escalations, and holds the approval audit trail."
+      },
+      {
+        "component": "Proactive Review Scheduler",
+        "responsibility": "Runs the same equalisation logic on a quarterly cycle across all entities without an SP2DK trigger, and reports gaps above the materiality threshold."
+      }
+    ]
+  },
+  "scope": {
+    "inScope": [
+      "Ingestion and classification of SP2DK letters received via Coretax account export, registered email, and scanned physical mail.",
+      "The five tax issue archetypes defined in Section 4 (PPN equalisation, PPh Badan revenue equalisation, PPh 21 tenaga ahli, PPh 23, PPh 4(2) final).",
+      "Automated retrieval and reconciliation of GL, SPT, e-Faktur and e-Bupot data for the entity and period under question.",
+      "Generation of a draft tanggapan letter in Bahasa Indonesia plus an indexed evidence pack (PDF and XLSX).",
+      "Two-tier human review and approval workflow with a full, immutable audit trail.",
+      "Group-level SP2DK case register with 14-day SLA tracking, reminders and escalation.",
+      "Quarterly pre-emptive equalisation review across in-scope entities.",
+      "A precedent library of previously approved Group positions, retrievable by issue archetype."
+    ],
+    "outOfScope": [
+      "Any transmission, filing or submission to DJP. Coretax remains operated exclusively by authorised Group Tax personnel.",
+      "Write-back of any value to the ERP, the HIS, or any system of record. The solution is read-only against all source systems.",
+      "Determination of the Group's final tax position. The agent produces a recommended position; the qualified tax professional owns it.",
+      "Handling of Pemeriksaan (formal tax audit), Bukti Permulaan, Keberatan or Banding proceedings.",
+      "Transfer pricing documentation, tax provisioning, and deferred tax computation.",
+      "Any processing of patient-identifiable clinical data. Revenue data is consumed at the aggregated and coded level only.",
+      "Direct API integration with Coretax DJP. No taxpayer-facing API is available — see AS-003.",
+      "Amendment of SPT (pembetulan). Where the agent's analysis indicates an amendment is warranted, it raises a flagged recommendation only."
+    ]
+  },
+  "process": {
+    "figureCaption": "Figure 1 — SP2DK response lifecycle. Source Systems denotes the ERP general ledger, the SPT archive, the e-Faktur/e-Bupot extracts and HIS revenue detail (Section 6). Every externally visible artefact passes a named human approval before it leaves the Group; the agent has no path to DJP.",
+    "narrative": "The trigger is the arrival of an SP2DK. The agent's work is bounded on one end by an inbound document it did not request, and on the other by a human being who signs the response. Everything in between is retrieval, arithmetic and drafting — and every figure it asserts must point back at a row in a source system.",
+    "mermaid": "sequenceDiagram\n    participant KPP as KPP / DJP\n    participant IN as Intake\n    participant AG as SP2DK Agent\n    participant SRC as Source Systems\n    participant EQ as Equalisation\n    participant UFC as Unit FC\n    participant GTM as Group Tax Mgr\n\n    KPP->>IN: SP2DK issued\n    IN->>IN: OCR + parse\n    IN->>AG: Case created · 14-day clock starts\n    AG->>AG: Classify archetype\n    alt Confidence below 0.85\n        AG->>GTM: Escalate for manual classification\n        GTM-->>AG: Archetype confirmed\n    end\n    AG->>SRC: Read-only extract (entity + period)\n    SRC-->>AG: GL · SPT · faktur · bupot\n    AG->>EQ: Reconciliation request\n    EQ-->>AG: Variance schedule (traced)\n    AG->>AG: Retrieve precedents\n    AG->>AG: Draft + cite\n    AG->>UFC: Present draft pack\n    UFC-->>AG: Accept / annotate / reject\n    AG->>GTM: Route for approval\n    alt Above materiality threshold\n        GTM->>GTM: Consult counsel\n    end\n    GTM-->>AG: Approve and lock pack\n    GTM->>KPP: Human submits via Coretax\n    GTM->>AG: Record submission + outcome\n    AG->>AG: Close case",
+    "steps": [
+      {
+        "id": "P-01",
+        "actor": "Intake Service",
+        "step": "Detect and ingest the SP2DK from the monitored Coretax export folder, the registered tax mailbox, or a manual upload of scanned mail.",
+        "output": "Raw document + provenance record"
+      },
+      {
+        "id": "P-02",
+        "actor": "Intake Service",
+        "step": "OCR and parse: KPP name, letter number, letter date, entity name and NPWP, tax type, tax period, and the narrative of what DJP is questioning.",
+        "output": "Structured case header"
+      },
+      {
+        "id": "P-03",
+        "actor": "Case Manager",
+        "step": "Create the case, start the 14-calendar-day SLA clock from the letter date, and notify the Unit Financial Controller and Group Tax Manager.",
+        "output": "Case ID + SLA deadline"
+      },
+      {
+        "id": "P-04",
+        "actor": "SP2DK Agent",
+        "step": "Classify the question into one of the five defined archetypes and emit a confidence score. Below threshold, stop and escalate.",
+        "output": "Archetype + confidence"
+      },
+      {
+        "id": "P-05",
+        "actor": "Retrieval Tools",
+        "step": "Execute the archetype's defined read-only queries against the ERP GL, the SPT archive, the e-Faktur and e-Bupot extracts, and HIS revenue detail, scoped to the entity and period.",
+        "output": "Evidence set with row-level identifiers"
+      },
+      {
+        "id": "P-06",
+        "actor": "Equalisation Engine",
+        "step": "Compute the reconciliation deterministically. Produce a variance schedule showing reported figure, ledger figure, difference, and the reconciling items.",
+        "output": "Variance schedule (XLSX + JSON)"
+      },
+      {
+        "id": "P-07",
+        "actor": "SP2DK Agent",
+        "step": "Query the precedent library for previously approved Group positions on the same archetype and surface them to the reviewer.",
+        "output": "Precedent shortlist"
+      },
+      {
+        "id": "P-08",
+        "actor": "SP2DK Agent",
+        "step": "Draft the tanggapan letter in Bahasa Indonesia to the Group template, attaching a citation to every asserted figure. Assemble the indexed evidence pack.",
+        "output": "Draft response pack"
+      },
+      {
+        "id": "P-09",
+        "actor": "Unit Financial Controller",
+        "step": "First-line review. Accept, annotate or reject. Rejection returns the case to the agent with reviewer notes.",
+        "output": "Reviewed draft + reviewer record"
+      },
+      {
+        "id": "P-10",
+        "actor": "Group Tax Manager",
+        "step": "Second-line approval. Where the unreconciled variance exceeds the materiality threshold, external counsel is consulted before approval.",
+        "output": "Approved and locked pack"
+      },
+      {
+        "id": "P-11",
+        "actor": "Group Tax Manager",
+        "step": "Submit to DJP via Coretax. This action occurs outside the solution and is recorded back into the case by the submitter.",
+        "output": "Submission record + receipt"
+      },
+      {
+        "id": "P-12",
+        "actor": "Case Manager",
+        "step": "Record the DJP outcome when known, close the case, and write the approved position to the precedent library.",
+        "output": "Closed case + new precedent"
+      }
+    ]
+  },
+  "systems": {
+    "integrations": [
+      {
+        "id": "INT-01",
+        "system": "Coretax DJP",
+        "role": "Source of SP2DK; destination of the response",
+        "protocol": "Manual export / monitored mailbox",
+        "direction": "Inbound only",
+        "frequency": "Event-driven",
+        "notes": "No taxpayer-facing API exists. Integration is a monitored folder plus the registered tax email account. Outbound submission is a human action outside the system."
+      },
+      {
+        "id": "INT-02",
+        "system": "Group ERP — General Ledger & sub-ledgers",
+        "role": "Ledger, AP, AR and fixed-asset detail",
+        "protocol": "REST API or read-only DB view — vendor to confirm against target platform",
+        "direction": "Inbound (read-only)",
+        "frequency": "On-demand per case + nightly cache refresh",
+        "notes": "Read-only service account. No write scope to be granted under any circumstance."
+      },
+      {
+        "id": "INT-03",
+        "system": "SPT Archive (Tahunan & Masa)",
+        "role": "As-filed return figures for the period under question",
+        "protocol": "SFTP / document repository retrieval",
+        "direction": "Inbound (read-only)",
+        "frequency": "On-demand per case",
+        "notes": "Filed returns are the authoritative comparison basis; the agent must never restate a filed figure."
+      },
+      {
+        "id": "INT-04",
+        "system": "e-Faktur / e-Bupot extracts",
+        "role": "VAT output/input detail and withholding certificates",
+        "protocol": "Structured file drop (CSV/XML) from Coretax exports",
+        "direction": "Inbound (read-only)",
+        "frequency": "Monthly load + on-demand per case"
+      },
+      {
+        "id": "INT-05",
+        "system": "Hospital Information System (HIS)",
+        "role": "Revenue detail by service category, needed to separate exempt medical services from taxable supply",
+        "protocol": "REST API or data warehouse view",
+        "direction": "Inbound (read-only)",
+        "frequency": "On-demand per case",
+        "notes": "Aggregated and coded revenue only. No patient identifiers may cross the boundary — see SEC-005."
+      },
+      {
+        "id": "INT-06",
+        "system": "Document Management / SharePoint",
+        "role": "Storage of the evidence pack and the immutable case file",
+        "protocol": "Graph API",
+        "direction": "Bidirectional",
+        "frequency": "Per case event"
+      },
+      {
+        "id": "INT-07",
+        "system": "Microsoft 365 (Exchange & Teams)",
+        "role": "Intake mailbox, reviewer notification, escalation",
+        "protocol": "Graph API",
+        "direction": "Bidirectional",
+        "frequency": "Event-driven"
+      },
+      {
+        "id": "INT-08",
+        "system": "LLM inference endpoint",
+        "role": "Classification, evidence selection, narrative drafting",
+        "protocol": "HTTPS REST, private endpoint",
+        "direction": "Bidirectional",
+        "frequency": "Per agent step",
+        "notes": "Must be deployable within an Indonesian or contractually approved region. Zero-retention and no-training terms are mandatory — see AI-004."
+      },
+      {
+        "id": "INT-09",
+        "system": "Identity Provider (Entra ID)",
+        "role": "SSO, role assignment, conditional access",
+        "protocol": "SAML 2.0 / OIDC",
+        "direction": "Bidirectional",
+        "frequency": "Per session"
+      }
+    ]
+  },
+  "data": {
+    "entities": [
+      {
+        "entity": "Case",
+        "keyFields": "case_id, entity_npwp, kpp_code, letter_number, letter_date, sla_due_date, archetype, confidence, status",
+        "source": "Generated at intake",
+        "retention": "10 years"
+      },
+      {
+        "entity": "Evidence Item",
+        "keyFields": "evidence_id, case_id, source_system, source_row_ref, extracted_at, hash",
+        "source": "Retrieval tools",
+        "retention": "10 years"
+      },
+      {
+        "entity": "Variance Line",
+        "keyFields": "case_id, dimension, reported_amount, ledger_amount, variance, reconciling_item, trace_ref",
+        "source": "Equalisation Engine",
+        "retention": "10 years"
+      },
+      {
+        "entity": "Approval Record",
+        "keyFields": "case_id, approver_upn, role, decision, decided_at, comment, artefact_hash",
+        "source": "Workflow",
+        "retention": "10 years, immutable"
+      },
+      {
+        "entity": "Precedent",
+        "keyFields": "precedent_id, archetype, position_summary, outcome, approved_by, source_case_id",
+        "source": "Case closure",
+        "retention": "Indefinite"
+      }
+    ],
+    "mappings": [
+      {
+        "field": "Gross revenue per GL",
+        "source": "ERP GL revenue accounts (mapped set)",
+        "target": "Equalisation — ledger side",
+        "transformation": "Sum of mapped revenue accounts for the period, net of internal eliminations and credit notes."
+      },
+      {
+        "field": "Revenue per SPT",
+        "source": "SPT Tahunan Badan / SPT Masa PPN",
+        "target": "Equalisation — reported side",
+        "transformation": "As filed. Never restated or adjusted by the agent."
+      },
+      {
+        "field": "Exempt vs taxable revenue split",
+        "source": "HIS service category codes",
+        "target": "VAT base derivation",
+        "transformation": "Apply the Group's approved service-category-to-VAT-treatment mapping table. Any code absent from the mapping raises EX-004."
+      },
+      {
+        "field": "Withholding object base",
+        "source": "ERP expense accounts + AP invoice detail",
+        "target": "PPh 21/23/4(2) equalisation",
+        "transformation": "Group expense lines by withholding object per the Group's approved object mapping; compare against e-Bupot totals."
+      },
+      {
+        "field": "Doctor professional fee base",
+        "source": "AP sub-ledger, tenaga ahli vendor class",
+        "target": "PPh 21 tenaga ahli equalisation",
+        "transformation": "Apply the deemed-base treatment for tenaga ahli per the Group's standing tax position; flag any vendor whose classification changed mid-period."
+      }
+    ],
+    "aiPrompts": [
+      {
+        "id": "PR-01",
+        "purpose": "Issue classification",
+        "input": "Parsed SP2DK narrative + entity master data",
+        "output": "Archetype enum + confidence + extracted period and tax type",
+        "constraint": "Must return one of the five defined archetypes or UNKNOWN. Free-text archetypes are rejected by schema validation."
+      },
+      {
+        "id": "PR-02",
+        "purpose": "Evidence selection",
+        "input": "Variance schedule + full evidence set",
+        "output": "Ranked list of evidence_ids supporting each variance line",
+        "constraint": "May only reference evidence_ids present in the supplied set. Any reference to an absent id fails the response."
+      },
+      {
+        "id": "PR-03",
+        "purpose": "Response narrative drafting",
+        "input": "Approved variance schedule + selected evidence + precedent shortlist + letter template",
+        "output": "Tanggapan letter body in Bahasa Indonesia",
+        "constraint": "Every numeric assertion must carry a citation token resolving to a variance line or evidence item. Uncited numerals fail validation — see AI-002."
+      },
+      {
+        "id": "PR-04",
+        "purpose": "Precedent retrieval",
+        "input": "Archetype + variance profile",
+        "output": "Top-5 precedent matches with similarity rationale",
+        "constraint": "Retrieval only. The agent may not synthesise a precedent that does not exist in the library."
+      }
+    ]
+  },
+  "requirements": {
+    "functional": [
+      {
+        "id": "FR-001",
+        "priority": "Must",
+        "requirement": "The system shall ingest SP2DK documents from a monitored folder, a registered mailbox, and manual upload, and shall record the provenance of every ingested document."
+      },
+      {
+        "id": "FR-002",
+        "priority": "Must",
+        "requirement": "The system shall OCR and parse scanned SP2DK letters, extracting KPP, letter number, letter date, NPWP, tax type and tax period, and shall present the parsed header for human confirmation before the case proceeds."
+      },
+      {
+        "id": "FR-003",
+        "priority": "Must",
+        "requirement": "The system shall classify each case into one of the five defined tax issue archetypes and emit a numeric confidence score with the classification."
+      },
+      {
+        "id": "FR-004",
+        "priority": "Must",
+        "requirement": "The system shall start a 14-calendar-day SLA clock from the SP2DK letter date and display remaining time on every case view."
+      },
+      {
+        "id": "FR-005",
+        "priority": "Must",
+        "requirement": "The system shall execute read-only retrieval against the ERP GL, the SPT archive, the e-Faktur/e-Bupot extracts and HIS revenue detail, scoped strictly to the entity and period identified in the case."
+      },
+      {
+        "id": "FR-006",
+        "priority": "Must",
+        "requirement": "The system shall compute the equalisation deterministically in a dedicated calculation service. No monetary figure presented to a reviewer may originate from language model output."
+      },
+      {
+        "id": "FR-007",
+        "priority": "Must",
+        "requirement": "The system shall produce a variance schedule in which every line is traceable to an identified source row in a source system."
+      },
+      {
+        "id": "FR-008",
+        "priority": "Must",
+        "requirement": "The system shall generate a draft tanggapan letter in Bahasa Indonesia conforming to the Group's approved template."
+      },
+      {
+        "id": "FR-009",
+        "priority": "Must",
+        "requirement": "The system shall attach a resolvable citation to every numeric assertion in the drafted response and shall block the draft from reaching a reviewer if any numeral is uncited."
+      },
+      {
+        "id": "FR-010",
+        "priority": "Must",
+        "requirement": "The system shall assemble an indexed evidence pack as a single PDF plus a supporting XLSX workbook."
+      },
+      {
+        "id": "FR-011",
+        "priority": "Must",
+        "requirement": "The system shall enforce a two-tier approval workflow: Unit Financial Controller first-line, Group Tax Manager second-line. Neither tier may be skipped or self-approved."
+      },
+      {
+        "id": "FR-012",
+        "priority": "Must",
+        "requirement": "The system shall record an immutable approval trail capturing approver identity, role, decision, timestamp, comment, and a cryptographic hash of the exact artefact approved."
+      },
+      {
+        "id": "FR-013",
+        "priority": "Must",
+        "requirement": "The system shall maintain a Group-level SP2DK register showing every open and closed case, its unit, archetype, SLA status and current owner."
+      },
+      {
+        "id": "FR-014",
+        "priority": "Must",
+        "requirement": "The system shall issue escalation notifications at T-7, T-4 and T-2 calendar days before the SLA deadline, addressed to the case owner and the Group Tax Manager."
+      },
+      {
+        "id": "FR-015",
+        "priority": "Should",
+        "requirement": "The system shall provide a precedent library, searchable by archetype, holding previously approved Group positions and their recorded outcomes."
+      },
+      {
+        "id": "FR-016",
+        "priority": "Should",
+        "requirement": "The system shall run a quarterly pre-emptive equalisation across all in-scope entities and report gaps exceeding the materiality threshold, without requiring an SP2DK trigger."
+      },
+      {
+        "id": "FR-017",
+        "priority": "Should",
+        "requirement": "The system shall allow a reviewer to annotate any variance line or draft paragraph and return the case to the agent for redrafting, preserving the prior version."
+      },
+      {
+        "id": "FR-018",
+        "priority": "Should",
+        "requirement": "The system shall support recording of an extension request to the KPP and shall adjust the SLA clock only upon evidence of the extension being granted."
+      },
+      {
+        "id": "FR-019",
+        "priority": "Could",
+        "requirement": "The system shall produce a Group-level analytics view of SP2DK frequency by KPP, archetype and unit, to inform where remediation effort is best directed."
+      },
+      {
+        "id": "FR-020",
+        "priority": "Could",
+        "requirement": "The system shall recommend, but never execute, an SPT amendment (pembetulan) where the equalisation indicates one is warranted."
+      }
+    ],
+    "business": [
+      {
+        "id": "BR-001",
+        "priority": "Must",
+        "rule": "The solution shall never transmit any document, message or filing to DJP. Submission via Coretax is performed exclusively by an authorised human being.",
+        "rationale": "A filing is a legal act with statutory consequence. It cannot be delegated to software."
+      },
+      {
+        "id": "BR-002",
+        "priority": "Must",
+        "rule": "All connections to systems of record are read-only. No service account used by the solution shall hold write, update or delete permission on any source system.",
+        "rationale": "Prevents the solution from ever becoming the cause of a ledger or filing discrepancy."
+      },
+      {
+        "id": "BR-003",
+        "priority": "Must",
+        "rule": "The response deadline is 14 calendar days from the date of the SP2DK, per SE-05/PJ/2022. The clock is calendar-based and is not adjusted for weekends or public holidays.",
+        "rationale": "Statutory. Working-day arithmetic would systematically overstate available time."
+      },
+      {
+        "id": "BR-004",
+        "priority": "Must",
+        "rule": "A figure as filed in an SPT is immutable within the solution. The agent may explain, reconcile or contextualise a filed figure but shall never restate it.",
+        "rationale": "The filed return is the legal position of record until formally amended."
+      },
+      {
+        "id": "BR-005",
+        "priority": "Must",
+        "rule": "Every SP2DK response requires two named approvals: the Unit Financial Controller and the Group Tax Manager. The two roles may not be held by the same individual for the same case.",
+        "rationale": "Segregation of duties; audit-tested control."
+      },
+      {
+        "id": "BR-006",
+        "priority": "Must",
+        "rule": "Where the unreconciled variance exceeds IDR 500 million or 5% of the entity's reported revenue for the period, whichever is lower, the case shall not be approvable until an external tax counsel consultation is recorded against it.",
+        "rationale": "Materiality gate. Threshold to be ratified by the Group Tax Manager — see OQ-001."
+      },
+      {
+        "id": "BR-007",
+        "priority": "Must",
+        "rule": "Classification confidence below 0.85 shall halt automated progression and route the case to the Group Tax Manager for manual archetype assignment.",
+        "rationale": "A misclassified case retrieves the wrong evidence and produces a confidently wrong response."
+      },
+      {
+        "id": "BR-008",
+        "priority": "Must",
+        "rule": "Case files, evidence packs and approval records shall be retained for 10 years from the end of the relevant tax year, per UU KUP Art. 28(11).",
+        "rationale": "Statutory retention."
+      },
+      {
+        "id": "BR-009",
+        "priority": "Must",
+        "rule": "No patient-identifiable data shall enter the solution. Revenue data is consumed at service-category and aggregate level only.",
+        "rationale": "Patient data protection; keeps the solution outside the clinical data perimeter entirely."
+      },
+      {
+        "id": "BR-010",
+        "priority": "Must",
+        "rule": "Any service category code encountered in HIS revenue data that is absent from the approved VAT treatment mapping shall halt the equalisation and raise an exception. The agent shall not infer a treatment.",
+        "rationale": "An inferred VAT treatment is an unsupported tax position."
+      },
+      {
+        "id": "BR-011",
+        "priority": "Should",
+        "rule": "A precedent may only be written to the library from a case that was approved by the Group Tax Manager and whose DJP outcome has been recorded.",
+        "rationale": "Prevents unproven positions circulating as Group practice."
+      },
+      {
+        "id": "BR-012",
+        "priority": "Should",
+        "rule": "The quarterly pre-emptive review shall report gaps as candidates for investigation, never as findings, and shall not create a case in the SP2DK register.",
+        "rationale": "Preserves the distinction between an internal signal and a tax authority action."
+      }
+    ]
+  },
+  "ai": {
+    "guardrails": [
+      {
+        "id": "AI-001",
+        "priority": "Must",
+        "control": "The language model shall perform no arithmetic. All monetary computation is executed by the deterministic Equalisation Engine, and figures are injected into the narrative by templated substitution."
+      },
+      {
+        "id": "AI-002",
+        "priority": "Must",
+        "control": "Citation enforcement: a post-generation validator parses the drafted response, extracts every numeral, and confirms each resolves to a variance line or evidence item. Any failure blocks the draft and returns it for regeneration, with a maximum of three attempts before human escalation."
+      },
+      {
+        "id": "AI-003",
+        "priority": "Must",
+        "control": "The agent operates over a closed tool set. It has no general web access, no code execution, and no ability to call a system not enumerated in Section 6."
+      },
+      {
+        "id": "AI-004",
+        "priority": "Must",
+        "control": "The inference endpoint shall be contractually zero-retention, shall not use Group data for model training, and shall be hosted in Indonesia or a region approved in writing by the Group Data Protection owner."
+      },
+      {
+        "id": "AI-005",
+        "priority": "Must",
+        "control": "Every agent step — prompt, tool call, tool response, model output — is logged with the case id and retained for the case retention period, and is reproducible for audit."
+      },
+      {
+        "id": "AI-006",
+        "priority": "Must",
+        "control": "Model and prompt versions are pinned per case. A case opened under one version completes under that version. Version identifiers appear on the case record and in the evidence pack."
+      },
+      {
+        "id": "AI-007",
+        "priority": "Must",
+        "control": "Prompt injection defence: content extracted from inbound SP2DK documents is treated strictly as data. Instructions embedded in a document shall never alter agent behaviour, and the boundary shall be tested as part of UAT."
+      },
+      {
+        "id": "AI-008",
+        "priority": "Should",
+        "control": "A regression evaluation set of at least 40 historical SP2DK cases with known correct archetypes shall be maintained. Classification accuracy shall be re-measured before any model or prompt change is promoted to production."
+      },
+      {
+        "id": "AI-009",
+        "priority": "Should",
+        "control": "The agent shall state uncertainty explicitly in the draft where evidence is incomplete, rather than producing a confident narrative over a gap."
+      }
+    ],
+    "humanApprovals": [
+      {
+        "gate": "Parsed case header",
+        "approver": "Unit Tax Officer",
+        "blocking": "Yes — case cannot proceed to retrieval"
+      },
+      {
+        "gate": "Archetype where confidence < 0.85",
+        "approver": "Group Tax Manager",
+        "blocking": "Yes"
+      },
+      {
+        "gate": "Draft response pack — first line",
+        "approver": "Unit Financial Controller",
+        "blocking": "Yes"
+      },
+      {
+        "gate": "Draft response pack — second line",
+        "approver": "Group Tax Manager",
+        "blocking": "Yes"
+      },
+      {
+        "gate": "Variance above materiality threshold",
+        "approver": "External tax counsel consultation recorded",
+        "blocking": "Yes"
+      },
+      {
+        "gate": "Submission to DJP",
+        "approver": "Group Tax Manager (performed outside the system)",
+        "blocking": "Yes — system has no submission capability"
+      }
+    ],
+    "evaluation": [
+      {
+        "metric": "Archetype classification accuracy",
+        "target": "≥ 95% on the regression set",
+        "method": "Automated evaluation run pre-promotion"
+      },
+      {
+        "metric": "Citation validation pass rate",
+        "target": "100% of drafts reaching a reviewer",
+        "method": "Enforced by validator; failures logged"
+      },
+      {
+        "metric": "Reviewer material-edit rate",
+        "target": "≤ 20% of drafts require material factual correction by month 3",
+        "method": "Reviewer annotation classification"
+      },
+      {
+        "metric": "Equalisation reproducibility",
+        "target": "100% — identical inputs produce identical variance schedules",
+        "method": "Deterministic replay test in the regression suite"
+      }
+    ]
+  },
+  "exceptions": {
+    "matrix": [
+      {
+        "id": "EX-001",
+        "condition": "SP2DK document is unreadable, or OCR confidence falls below the configured threshold.",
+        "severity": "High",
+        "handling": "Halt intake. Notify the Unit Tax Officer for manual key-in of the case header. SLA clock still starts from the letter date."
+      },
+      {
+        "id": "EX-002",
+        "condition": "Classification confidence below 0.85, or archetype returned as UNKNOWN.",
+        "severity": "High",
+        "handling": "Halt. Route to Group Tax Manager for manual archetype assignment. Record the manual assignment for the evaluation set."
+      },
+      {
+        "id": "EX-003",
+        "condition": "A source system is unreachable, or returns a partial extract.",
+        "severity": "High",
+        "handling": "Halt the case. Do not proceed on partial evidence. Retry on a defined backoff, then notify the case owner and the technical owner."
+      },
+      {
+        "id": "EX-004",
+        "condition": "A HIS service category code is not present in the approved VAT treatment mapping.",
+        "severity": "High",
+        "handling": "Halt the equalisation. Raise to the System Accountant for mapping extension. The agent shall not infer a treatment."
+      },
+      {
+        "id": "EX-005",
+        "condition": "Citation validation fails after three regeneration attempts.",
+        "severity": "High",
+        "handling": "Halt. Escalate to Group Tax Manager with the failed draft and the specific uncited assertions identified."
+      },
+      {
+        "id": "EX-006",
+        "condition": "Unreconciled variance exceeds the materiality threshold in BR-006.",
+        "severity": "Critical",
+        "handling": "Block approval. Require a recorded external counsel consultation before the case can be approved."
+      },
+      {
+        "id": "EX-007",
+        "condition": "SLA clock reaches T-2 days without second-line approval.",
+        "severity": "Critical",
+        "handling": "Escalate to the Group CFO. Prompt the Group Tax Manager to consider a formal extension request to the KPP."
+      },
+      {
+        "id": "EX-008",
+        "condition": "Duplicate SP2DK detected — same letter number and NPWP already in the register.",
+        "severity": "Medium",
+        "handling": "Link to the existing case, do not create a duplicate, and notify the case owner."
+      },
+      {
+        "id": "EX-009",
+        "condition": "The entity NPWP on the letter does not resolve to an entity in the Group master.",
+        "severity": "Medium",
+        "handling": "Hold the case in an unassigned queue and notify Group Tax. No retrieval is attempted."
+      },
+      {
+        "id": "EX-010",
+        "condition": "The LLM endpoint is unavailable or exceeds its latency budget.",
+        "severity": "Medium",
+        "handling": "Queue and retry. Notify the technical owner if unresolved beyond 60 minutes. Deterministic retrieval and equalisation continue to run and are presented without narrative."
+      }
+    ],
+    "controls": [
+      {
+        "id": "CTL-01",
+        "control": "Segregation of duties between first-line and second-line approval is enforced by the system, not by convention.",
+        "framework": "SOX-equivalent / Group internal control"
+      },
+      {
+        "id": "CTL-02",
+        "control": "Immutable, append-only audit log covering every agent action and every human decision.",
+        "framework": "Audit trail / UU KUP evidentiary requirement"
+      },
+      {
+        "id": "CTL-03",
+        "control": "Read-only enforcement verified at the service-account permission level and re-tested at each release.",
+        "framework": "Change management"
+      },
+      {
+        "id": "CTL-04",
+        "control": "Quarterly control review by Internal Audit covering a sample of closed cases, tracing each asserted figure to source.",
+        "framework": "Internal Audit programme"
+      },
+      {
+        "id": "CTL-05",
+        "control": "Annual review of the VAT treatment mapping table and the withholding object mapping by Group Tax.",
+        "framework": "Master data governance"
+      }
+    ]
+  },
+  "security": {
+    "roles": [
+      {
+        "role": "Unit Tax Officer",
+        "permissions": "Create and view own-unit cases, confirm parsed headers, upload documents",
+        "sod": "Cannot approve at any tier"
+      },
+      {
+        "role": "Unit Financial Controller",
+        "permissions": "View own-unit cases, first-line review and approval, annotate",
+        "sod": "Cannot perform second-line approval"
+      },
+      {
+        "role": "Group Tax Manager",
+        "permissions": "All units, manual classification, second-line approval, precedent curation, threshold configuration",
+        "sod": "Cannot perform first-line approval on the same case"
+      },
+      {
+        "role": "System Accountant",
+        "permissions": "Mapping table maintenance, connector configuration",
+        "sod": "No case approval rights; no access to draft narratives"
+      },
+      {
+        "role": "Internal Audit",
+        "permissions": "Read-only across all cases and the full audit log",
+        "sod": "No write access anywhere"
+      },
+      {
+        "role": "Vendor Support",
+        "permissions": "Time-boxed, ticket-linked, break-glass access to non-production only",
+        "sod": "No standing production access — see SEC-004"
+      }
+    ],
+    "policies": [
+      {
+        "id": "SEC-001",
+        "priority": "Must",
+        "policy": "Authentication via Group SSO (Entra ID) with MFA enforced. No local application accounts for human users."
+      },
+      {
+        "id": "SEC-002",
+        "priority": "Must",
+        "policy": "Role-based access control with row-level entity scoping. A unit role sees only its own entity's cases."
+      },
+      {
+        "id": "SEC-003",
+        "priority": "Must",
+        "policy": "All source-system credentials held in a managed secret store with automated rotation. No credential in configuration files, source code, or agent prompts."
+      },
+      {
+        "id": "SEC-004",
+        "priority": "Must",
+        "policy": "Vendor personnel hold no standing production access. Support access is break-glass, time-boxed, ticket-linked, approved by the technical owner, and fully logged."
+      },
+      {
+        "id": "SEC-005",
+        "priority": "Must",
+        "policy": "The solution processes no patient-identifiable data. This is enforced at the HIS connector by field-level allow-listing, not by downstream filtering."
+      },
+      {
+        "id": "SEC-006",
+        "priority": "Must",
+        "policy": "Tax and financial data at rest is encrypted and stored within an approved data residency boundary. Data in transit uses TLS 1.2 or above."
+      },
+      {
+        "id": "SEC-007",
+        "priority": "Must",
+        "policy": "Penetration test and prompt-injection assessment completed and remediated before production go-live."
+      },
+      {
+        "id": "SEC-008",
+        "priority": "Should",
+        "policy": "Quarterly user access review conducted by the Group Tax Manager, with evidence retained for Internal Audit."
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "id": "OUT-01",
+      "output": "Draft Tanggapan SP2DK",
+      "format": "DOCX and PDF, Bahasa Indonesia, Group letterhead template",
+      "audience": "Group Tax Manager → DJP",
+      "trigger": "On completion of drafting"
+    },
+    {
+      "id": "OUT-02",
+      "output": "Indexed Evidence Pack",
+      "format": "Single bookmarked PDF with an index page and page-referenced exhibits",
+      "audience": "DJP, Internal Audit",
+      "trigger": "On completion of drafting"
+    },
+    {
+      "id": "OUT-03",
+      "output": "Equalisation Workbook",
+      "format": "XLSX — variance schedule with line-level source references, formulas visible",
+      "audience": "Unit FC, Group Tax, Internal Audit",
+      "trigger": "On completion of reconciliation"
+    },
+    {
+      "id": "OUT-04",
+      "output": "Case Audit File",
+      "format": "Immutable bundle: prompts, tool calls, model outputs, approvals, artefact hashes",
+      "audience": "Internal Audit, external auditor",
+      "trigger": "On case closure"
+    },
+    {
+      "id": "OUT-05",
+      "output": "Group SP2DK Register",
+      "format": "Web view + scheduled XLSX extract",
+      "audience": "Group Tax Manager, CFO",
+      "trigger": "Live, plus weekly extract"
+    },
+    {
+      "id": "OUT-06",
+      "output": "SLA Escalation Notifications",
+      "format": "Email and Teams message",
+      "audience": "Case owner, Group Tax Manager, CFO at T-2",
+      "trigger": "T-7, T-4, T-2 calendar days"
+    },
+    {
+      "id": "OUT-07",
+      "output": "Quarterly Pre-emptive Equalisation Report",
+      "format": "PDF summary + XLSX detail per entity",
+      "audience": "Group Tax Manager, Unit FCs",
+      "trigger": "Quarterly schedule"
+    }
+  ],
+  "testing": [
+    {
+      "id": "AC-001",
+      "requirementRef": "FR-002, EX-001",
+      "given": "a scanned SP2DK letter is uploaded with legible text",
+      "when": "the intake service processes the document",
+      "then": "the KPP name, letter number, letter date, NPWP, tax type and tax period are extracted and presented to the Unit Tax Officer for confirmation, and the case does not progress until that confirmation is recorded."
+    },
+    {
+      "id": "AC-002",
+      "requirementRef": "FR-004, BR-003",
+      "given": "an SP2DK dated 2 September with a case created on 5 September",
+      "when": "the SLA clock is evaluated",
+      "then": "the deadline is calculated as 16 September — 14 calendar days from the letter date, not the case creation date — and weekends and public holidays are not excluded."
+    },
+    {
+      "id": "AC-003",
+      "requirementRef": "FR-003, BR-007, EX-002",
+      "given": "a classification returning archetype PPN_EQUALISATION with a confidence of 0.72",
+      "when": "the agent attempts to progress to retrieval",
+      "then": "progression is blocked, the case is routed to the Group Tax Manager for manual archetype assignment, and the manual assignment is captured for the evaluation set."
+    },
+    {
+      "id": "AC-004",
+      "requirementRef": "FR-006, FR-007, AI-001",
+      "given": "a completed equalisation for a case",
+      "when": "any monetary figure in the draft response is traced back through the system",
+      "then": "its origin is a Equalisation Engine output record, and no monetary figure can be shown to have originated in language model output."
+    },
+    {
+      "id": "AC-005",
+      "requirementRef": "FR-009, AI-002, EX-005",
+      "given": "a drafted response containing the assertion 'selisih sebesar Rp1.240.500.000' with no resolvable citation",
+      "when": "the citation validator runs",
+      "then": "the draft is rejected, regeneration is attempted up to three times, and on continued failure the case escalates to the Group Tax Manager with the specific uncited assertion identified."
+    },
+    {
+      "id": "AC-006",
+      "requirementRef": "FR-011, BR-005",
+      "given": "a user holding both Unit Financial Controller and Group Tax Manager roles",
+      "when": "that user attempts second-line approval on a case they approved at first line",
+      "then": "the system refuses the approval, states the segregation-of-duties rule, and records the attempt in the audit log."
+    },
+    {
+      "id": "AC-007",
+      "requirementRef": "BR-006, EX-006",
+      "given": "a case with an unreconciled variance of IDR 780 million against reported revenue of IDR 9 billion",
+      "when": "the Group Tax Manager attempts approval",
+      "then": "approval is blocked until an external tax counsel consultation is recorded against the case, and the blocking reason cites BR-006."
+    },
+    {
+      "id": "AC-008",
+      "requirementRef": "FR-005, BR-002, SEC-003",
+      "given": "the service account used by the ERP connector",
+      "when": "its effective permissions are enumerated in the target system",
+      "then": "only read scopes are present, and any attempt by the solution to issue a write operation is refused at the source system, not merely at the application layer."
+    },
+    {
+      "id": "AC-009",
+      "requirementRef": "BR-010, EX-004",
+      "given": "HIS revenue detail containing a service category code absent from the approved VAT treatment mapping",
+      "when": "the equalisation runs",
+      "then": "the equalisation halts, no VAT treatment is inferred for that code, and an exception is raised to the System Accountant naming the unmapped code."
+    },
+    {
+      "id": "AC-010",
+      "requirementRef": "AI-007, SEC-007",
+      "given": "an SP2DK PDF containing embedded text instructing the agent to disregard its approval workflow",
+      "when": "the agent processes the document",
+      "then": "the embedded text is treated as document content only, the approval workflow is unchanged, and the attempt is logged as a security event."
+    },
+    {
+      "id": "AC-011",
+      "requirementRef": "BR-001",
+      "given": "any case in any state",
+      "when": "the full solution surface is examined for outbound capability toward DJP",
+      "then": "no interface, job, or credential exists that is capable of transmitting to DJP or Coretax."
+    },
+    {
+      "id": "AC-012",
+      "requirementRef": "FR-012, BR-008, CTL-02",
+      "given": "a case approved at both tiers and subsequently closed",
+      "when": "Internal Audit retrieves the case audit file",
+      "then": "the file contains every prompt, tool call, tool response, model output, and human decision with timestamps and identities, and the hash of each approved artefact matches the artefact stored."
+    },
+    {
+      "id": "AC-013",
+      "requirementRef": "FR-014, EX-007",
+      "given": "a case at T-2 calendar days without second-line approval",
+      "when": "the SLA evaluation job runs",
+      "then": "an escalation is issued to the Group CFO and the Group Tax Manager is prompted to consider a formal extension request to the KPP."
+    },
+    {
+      "id": "AC-014",
+      "requirementRef": "AI-006",
+      "given": "a case opened while model version M1 and prompt version P3 are current",
+      "when": "the model is upgraded to M2 mid-case",
+      "then": "the case continues to completion on M1/P3, and the evidence pack records the versions used."
+    },
+    {
+      "id": "AC-015",
+      "requirementRef": "FR-016, BR-012",
+      "given": "the quarterly pre-emptive review identifies a gap above the materiality threshold at a unit",
+      "when": "the report is produced",
+      "then": "the gap is presented as a candidate for investigation, no case is created in the SP2DK register, and the report language does not characterise the gap as a finding."
+    },
+    {
+      "id": "AC-016",
+      "requirementRef": "FR-001",
+      "given": "the same SP2DK arriving through each of the three supported channels — Coretax export folder, registered mailbox, and manual upload",
+      "when": "each is ingested",
+      "then": "a case is created in every instance and the provenance record names the channel, the receipt timestamp and the originating file or message identifier."
+    },
+    {
+      "id": "AC-017",
+      "requirementRef": "FR-008, FR-010",
+      "given": "a case whose draft has passed citation validation",
+      "when": "the response pack is assembled",
+      "then": "the tanggapan letter is produced in Bahasa Indonesia on the approved Group template, and the evidence pack is a single bookmarked PDF with an index page plus a companion XLSX whose formulas are visible."
+    },
+    {
+      "id": "AC-018",
+      "requirementRef": "FR-013",
+      "given": "open cases at three different units and two closed cases",
+      "when": "the Group Tax Manager opens the SP2DK register",
+      "then": "all five appear with unit, archetype, SLA status and current owner, while a Unit Financial Controller opening the same register sees only their own unit's cases."
+    },
+    {
+      "id": "AC-019",
+      "requirementRef": "BR-004",
+      "given": "a case where the ledger figure differs from the figure filed in the SPT",
+      "when": "the equalisation and the draft are produced",
+      "then": "the filed figure is reproduced unchanged throughout, the difference is presented as a reconciling item, and no artefact in the pack contains a restated SPT value."
+    },
+    {
+      "id": "AC-020",
+      "requirementRef": "BR-009, SEC-005",
+      "given": "a HIS revenue extract request for a case",
+      "when": "the connector returns data",
+      "then": "only allow-listed fields are present, no patient identifier is among them, and the allow-list is enforced at the connector rather than by filtering after receipt."
+    }
+  ],
+  "deployment": {
+    "environments": [
+      {
+        "env": "Development",
+        "purpose": "Vendor build",
+        "data": "Synthetic only",
+        "access": "Vendor"
+      },
+      {
+        "env": "UAT",
+        "purpose": "Group acceptance testing",
+        "data": "Masked production extract — no patient data, NPWP tokenised",
+        "access": "Group Tax, Unit FC, Internal Audit, vendor (supervised)"
+      },
+      {
+        "env": "Production",
+        "purpose": "Live operation",
+        "data": "Production",
+        "access": "Group personnel only; vendor break-glass per SEC-004"
+      }
+    ],
+    "cutover": [
+      {
+        "id": "DEP-01",
+        "step": "Environment provisioning and network path establishment to all Section 6 systems.",
+        "owner": "Vendor + Group IT"
+      },
+      {
+        "id": "DEP-02",
+        "step": "Read-only service account creation and permission attestation signed by the technical owner.",
+        "owner": "Group IT"
+      },
+      {
+        "id": "DEP-03",
+        "step": "Load and sign off the VAT treatment mapping and withholding object mapping tables.",
+        "owner": "Group Tax + System Accountant"
+      },
+      {
+        "id": "DEP-04",
+        "step": "Load the 40-case regression set and establish the classification accuracy baseline.",
+        "owner": "Vendor + Group Tax"
+      },
+      {
+        "id": "DEP-05",
+        "step": "UAT execution against all acceptance criteria in Section 13, with defect triage and re-test.",
+        "owner": "Group Tax (lead), Unit FC, Internal Audit"
+      },
+      {
+        "id": "DEP-06",
+        "step": "Penetration test and prompt-injection assessment; remediation closed out.",
+        "owner": "Group IT Security"
+      },
+      {
+        "id": "DEP-07",
+        "step": "Parallel run: two full SP2DK cycles handled both manually and through the solution, with outputs compared.",
+        "owner": "Group Tax + Unit FC"
+      },
+      {
+        "id": "DEP-08",
+        "step": "Go-live decision gate. Sign-off by Group Tax Manager, CFO and Head of Internal Audit.",
+        "owner": "Group CFO"
+      },
+      {
+        "id": "DEP-09",
+        "step": "Phase 1 production launch across the 6 pilot units.",
+        "owner": "Vendor + Group Tax"
+      },
+      {
+        "id": "DEP-10",
+        "step": "Post-launch review at 60 days; go/no-go for Group-wide rollout.",
+        "owner": "Group Tax Manager"
+      }
+    ]
+  },
+  "documentation": [
+    {
+      "id": "DOC-01",
+      "artefact": "Solution architecture document",
+      "detail": "Component, data flow, and network diagrams; deployment topology; technology inventory with versions."
+    },
+    {
+      "id": "DOC-02",
+      "artefact": "Integration specification",
+      "detail": "Per-connector: endpoint, authentication, payload schema, error codes, retry semantics, rate limits."
+    },
+    {
+      "id": "DOC-03",
+      "artefact": "Equalisation Engine calculation specification",
+      "detail": "Every formula, rounding rule, and reconciling-item definition, written so a finance reviewer can verify it without reading code."
+    },
+    {
+      "id": "DOC-04",
+      "artefact": "AI operations manual",
+      "detail": "Prompt inventory with versions, model configuration, guardrail implementation, evaluation harness, retraining and promotion procedure."
+    },
+    {
+      "id": "DOC-05",
+      "artefact": "Operational runbook",
+      "detail": "Start/stop, monitoring, alert response, common failure modes with remediation steps, backup and restore."
+    },
+    {
+      "id": "DOC-06",
+      "artefact": "User guide",
+      "detail": "Role-based, Bahasa Indonesia and English, covering the full case lifecycle with screenshots."
+    },
+    {
+      "id": "DOC-07",
+      "artefact": "Control narrative for Internal Audit",
+      "detail": "Each control in Section 10 mapped to its implementation and to the evidence that demonstrates it operating."
+    },
+    {
+      "id": "DOC-08",
+      "artefact": "Test evidence pack",
+      "detail": "Executed test scripts and results for every acceptance criterion in Section 13, signed by the Group test lead."
+    }
+  ],
+  "support": {
+    "hypercare": "60 calendar days from Phase 1 go-live. Named vendor engineer available during Jakarta business hours with a 2-hour response commitment, plus attendance at a weekly case review with Group Tax.",
+    "slas": [
+      {
+        "severity": "P1 — Critical",
+        "definition": "Solution unavailable, or an SLA-breaching case cannot be progressed",
+        "response": "1 hour",
+        "resolution": "4 hours"
+      },
+      {
+        "severity": "P2 — High",
+        "definition": "A connector or the equalisation engine fails; cases can be created but not completed",
+        "response": "2 hours",
+        "resolution": "1 business day"
+      },
+      {
+        "severity": "P3 — Medium",
+        "definition": "Degraded function with an available workaround",
+        "response": "1 business day",
+        "resolution": "5 business days"
+      },
+      {
+        "severity": "P4 — Low",
+        "definition": "Cosmetic or documentation defect",
+        "response": "3 business days",
+        "resolution": "Next release"
+      }
+    ],
+    "ownership": [
+      {
+        "area": "Tax positions and archetype definitions",
+        "owner": "Group Tax Manager",
+        "transfer": "Retained by Group at all times"
+      },
+      {
+        "area": "Mapping tables and master data",
+        "owner": "System Accountant",
+        "transfer": "Retained by Group at all times"
+      },
+      {
+        "area": "Application platform and connectors",
+        "owner": "Vendor",
+        "transfer": "To Group IT at end of hypercare, with knowledge transfer sessions and DOC-05 signed off"
+      },
+      {
+        "area": "Prompt and model configuration",
+        "owner": "Vendor during build",
+        "transfer": "To Group Finance Systems at end of hypercare; changes thereafter follow Group change management"
+      }
+    ]
+  },
+  "vendorDeliverables": [
+    {
+      "id": "VD-01",
+      "deliverable": "Working solution deployed to Development, UAT and Production",
+      "acceptance": "Deployed, accessible, and passing smoke tests in each environment"
+    },
+    {
+      "id": "VD-02",
+      "deliverable": "Full source code and infrastructure-as-code",
+      "acceptance": "Delivered to the Group repository; Group holds perpetual rights to use and modify"
+    },
+    {
+      "id": "VD-03",
+      "deliverable": "Prompt inventory and evaluation harness",
+      "acceptance": "Runnable by Group personnel; produces the classification accuracy metric on demand"
+    },
+    {
+      "id": "VD-04",
+      "deliverable": "All documentation artefacts DOC-01 to DOC-08",
+      "acceptance": "Reviewed and signed by the respective Group owner"
+    },
+    {
+      "id": "VD-05",
+      "deliverable": "Executed test evidence for every acceptance criterion in Section 13",
+      "acceptance": "Signed by the Group test lead; zero open P1 or P2 defects"
+    },
+    {
+      "id": "VD-06",
+      "deliverable": "Penetration test and prompt-injection assessment reports with remediation evidence",
+      "acceptance": "Accepted by Group IT Security"
+    },
+    {
+      "id": "VD-07",
+      "deliverable": "Training delivery — two sessions per role, recorded",
+      "acceptance": "Attendance recorded; recordings delivered to the Group"
+    },
+    {
+      "id": "VD-08",
+      "deliverable": "60-day hypercare with weekly case review attendance",
+      "acceptance": "Exit review signed by the Group Tax Manager"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "AS-001",
+      "item": "Group Tax will provide at least 40 historical SP2DK letters with their final approved responses, for the regression and evaluation set."
+    },
+    {
+      "id": "AS-002",
+      "item": "The Group's VAT treatment mapping by HIS service category exists in a usable form, or can be produced by the System Accountant during DEP-03."
+    },
+    {
+      "id": "AS-003",
+      "item": "No taxpayer-facing API is available for Coretax DJP. Intake is by monitored folder and registered mailbox; submission remains a manual human action."
+    },
+    {
+      "id": "AS-004",
+      "item": "The ERP exposes a read-only interface adequate for period-scoped GL and sub-ledger extraction without a bespoke development effort on the ERP side."
+    },
+    {
+      "id": "AS-005",
+      "item": "The 14-calendar-day window per SE-05/PJ/2022 remains current at build time. The SLA rule is configurable so a regulatory change does not require a code release."
+    },
+    {
+      "id": "AS-006",
+      "item": "Entity master data — NPWP to hospital entity to KPP — is available and maintained by Group Tax."
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "DP-001",
+      "item": "Read-only service accounts on ERP, SPT archive and HIS",
+      "owner": "Group IT",
+      "neededBy": "Start of build"
+    },
+    {
+      "id": "DP-002",
+      "item": "Signed-off VAT treatment and withholding object mapping tables",
+      "owner": "Group Tax + System Accountant",
+      "neededBy": "DEP-03"
+    },
+    {
+      "id": "DP-003",
+      "item": "LLM endpoint provisioned with zero-retention terms and approved residency",
+      "owner": "Group IT + Legal",
+      "neededBy": "Start of build"
+    },
+    {
+      "id": "DP-004",
+      "item": "Entra ID application registration and role group creation",
+      "owner": "Group IT",
+      "neededBy": "Start of build"
+    },
+    {
+      "id": "DP-005",
+      "item": "Approved Group tanggapan letter template",
+      "owner": "Group Tax Manager",
+      "neededBy": "Drafting module build"
+    },
+    {
+      "id": "DP-006",
+      "item": "Internal Audit agreement on the control narrative in Section 10",
+      "owner": "Head of Internal Audit",
+      "neededBy": "DEP-08"
+    }
+  ],
+  "openQuestions": [
+    {
+      "id": "OQ-001",
+      "question": "Confirm the materiality threshold in BR-006. Is IDR 500 million / 5% of period revenue the right gate, and should it vary by entity size?",
+      "owner": "Group Tax Manager",
+      "due": "Before vendor award"
+    },
+    {
+      "id": "OQ-002",
+      "question": "What is the actual Group SP2DK volume for the trailing 12 months, by unit and by tax type? This sizes the business case and the concurrency requirement.",
+      "owner": "Group Tax Manager",
+      "due": "Before vendor award"
+    },
+    {
+      "id": "OQ-003",
+      "question": "Which ERP platform and version is the target, and does it expose a supported read-only API or must a database view be provisioned?",
+      "owner": "Head of Finance Systems",
+      "due": "Before vendor award"
+    },
+    {
+      "id": "OQ-004",
+      "question": "Does the Group accept an LLM endpoint hosted outside Indonesia under contractual zero-retention terms, or is in-country inference mandatory?",
+      "owner": "Group IT + Legal",
+      "due": "Before vendor award"
+    },
+    {
+      "id": "OQ-005",
+      "question": "Which six units form Phase 1, and are their KPP relationships representative of the Group's SP2DK profile?",
+      "owner": "Group Tax Manager",
+      "due": "Before build start"
+    },
+    {
+      "id": "OQ-006",
+      "question": "Where the pre-emptive quarterly review surfaces a material historical gap, what is the Group's standing policy — voluntary pembetulan, or hold pending DJP action? This is a policy decision, not a system requirement, but the workflow must reflect it.",
+      "owner": "Group CFO + Group Tax Manager",
+      "due": "Before Phase 1 go-live"
+    }
+  ]
+}
