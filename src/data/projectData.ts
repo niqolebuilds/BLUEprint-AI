@@ -19,6 +19,13 @@ export const INITIAL_MANAGED_PROJECTS: ManagedProject[] = [
     stage: '5: Tracked Execution',
     progressPercent: 68,
     targetDate: '2026-09-30',
+    rice: {
+      reach: 41, // finance staff across all Siloam hospital units touched by month-end close
+      impact: 100_000_000, // Rp 100.000.000/mo in eliminated unposted variance + faster close
+      impactUnit: 'IDR',
+      confidence: 80,
+      effort: 6, // person-weeks to complete remaining phases
+    },
   },
 ];
 

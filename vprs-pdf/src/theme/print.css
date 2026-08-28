@@ -1,0 +1,574 @@
+/* =========================================================================
+   Blueprint AI — Vendor Production Requirement Specification
+   Print / PDF stylesheet.  Enterprise Navy.
+   Targets Chromium's print engine. All units are physical (pt/mm) because
+   the output is paper, not a viewport.
+   ========================================================================= */
+
+:root {
+  --navy:        #1e3a8a;
+  --navy-deep:   #172554;
+  --ink:         #111827;
+  --ink-soft:    #374151;
+  --ink-mute:    #6b7280;
+  --rule:        #e5e7eb;
+  --rule-strong: #cbd5e1;
+  --wash:        #f3f4f6;
+  --wash-navy:   #eef2ff;
+  --amber:       #b45309;
+  --green:       #047857;
+  --red:         #b91c1c;
+}
+
+@page {
+  size: A4;
+  margin: 22mm 16mm 20mm 16mm;
+}
+
+/* The cover carries its own, larger brand block, so the running header must
+   not also appear on page 1. Chromium has no ":first" rule for header
+   templates — but it clips a header that does not fit its margin box, so a
+   short top margin on the first page suppresses it. The cover's own padding
+   restores the visual inset. */
+@page :first {
+  margin-top: 0;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+body {
+  font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  font-size: 9.5pt;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* -------------------------------------------------------------- cover ---- */
+
+.cover {
+  page-break-after: always;
+  break-after: page;
+  /* Clears the running header, which Chromium draws on page 1 too. */
+  padding-top: 20mm;
+  min-height: 236mm;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Left-aligned so the cover's top-left column reads as one stack with the
+   title below it, rather than crowding the header's right-hand identity line. */
+.cover-brand {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-end;
+  margin-bottom: 4mm;
+}
+
+/* Signature block: the large brand mark, sitting above the cover footer. */
+.cover-sign {
+  margin-top: auto;
+  padding-top: 8mm;
+}
+
+.cover-org {
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-top: 2.5mm;
+}
+
+.brand-logo {
+  height: 13mm;
+  width: auto;
+  display: block;
+}
+
+.brand-wordmark {
+  font-size: 14pt;
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: -0.01em;
+}
+
+.cover-brand .cover-eyebrow { margin-bottom: 0; }
+
+.cover-rule {
+  height: 4pt;
+  background: var(--navy);
+  margin-bottom: 10mm;
+}
+
+.cover-eyebrow {
+  font-size: 8pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  font-weight: 600;
+  margin-bottom: 4mm;
+}
+
+.cover h1 {
+  font-size: 24pt;
+  line-height: 1.15;
+  color: var(--navy-deep);
+  font-weight: 700;
+  margin: 0 0 3mm 0;
+  letter-spacing: -0.01em;
+}
+
+.cover h2 {
+  font-size: 13pt;
+  color: var(--ink-soft);
+  font-weight: 500;
+  margin: 0 0 10mm 0;
+  line-height: 1.35;
+}
+
+.cover-type {
+  display: inline-block;
+  background: var(--navy);
+  color: #fff;
+  font-size: 8.5pt;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3pt 9pt;
+  border-radius: 2pt;
+  margin-bottom: 10mm;
+}
+
+.cover-foot {
+  margin-top: 5mm;
+  font-size: 8pt;
+  color: var(--ink-mute);
+  border-top: 1px solid var(--rule);
+  padding-top: 3mm;
+  display: flex;
+  justify-content: space-between;
+  gap: 8mm;
+}
+
+.cover-foot strong {
+  display: block;
+  font-size: 7pt;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--navy);
+  margin-bottom: 1mm;
+}
+
+/* ------------------------------------------------------------ headings --- */
+
+h1, h2, h3, h4 {
+  page-break-after: avoid;
+  break-after: avoid-page;
+  page-break-inside: avoid;
+  color: var(--navy);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+
+/* Section headings: numbered, ruled, and never orphaned above their table. */
+h2 {
+  font-size: 13pt;
+  margin: 9mm 0 4mm 0;
+  padding-bottom: 2mm;
+  border-bottom: 2pt solid var(--navy);
+  page-break-before: auto;
+}
+
+h2:first-of-type { margin-top: 0; }
+
+h3 {
+  font-size: 10.5pt;
+  color: var(--navy-deep);
+  margin: 6mm 0 2.5mm 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+p { margin: 0 0 3mm 0; }
+p:last-child { margin-bottom: 0; }
+
+strong { color: var(--ink); font-weight: 600; }
+
+ul { margin: 0 0 3mm 0; padding-left: 5mm; }
+li { margin-bottom: 1.5mm; }
+
+code {
+  font-family: 'SF Mono', 'Consolas', 'Liberation Mono', monospace;
+  font-size: 8pt;
+  background: var(--wash);
+  padding: 0.5pt 2pt;
+  border-radius: 2pt;
+  color: var(--ink-soft);
+}
+
+/* --------------------------------------------------------- meta grid ---- */
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--rule);
+  border-radius: 3pt;
+  overflow: hidden;
+  margin: 0 0 4mm 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.meta-grid .kv {
+  display: grid;
+  grid-template-columns: 38mm 1fr;
+  border-bottom: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+  min-height: 9mm;
+  align-items: center;
+}
+
+.meta-grid .kv:nth-child(2n) { border-right: none; }
+
+/* Long prose values: one column, wider label gutter. */
+.meta-grid--single { grid-template-columns: 1fr; }
+.meta-grid--single .kv {
+  grid-template-columns: 42mm 1fr;
+  border-right: none;
+}
+
+.meta-grid dt {
+  background: var(--wash);
+  font-size: 7.5pt;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-mute);
+  padding: 2.5mm 3mm;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--rule);
+}
+
+.meta-grid dd {
+  margin: 0;
+  padding: 2.5mm 3mm;
+  font-size: 9pt;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------- tables ---- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 4mm 0;
+  font-size: 8.5pt;
+  page-break-inside: auto;
+}
+
+/* Rows never split; headers repeat when a long table does break. */
+thead { display: table-header-group; }
+tfoot { display: table-footer-group; }
+tr { page-break-inside: avoid; break-inside: avoid; }
+
+th, td {
+  border: 1px solid var(--rule);
+  padding: 2mm 2.5mm;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+th {
+  background-color: var(--wash);
+  font-weight: 600;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--navy-deep);
+  border-bottom: 1.5pt solid var(--rule-strong);
+}
+
+tbody tr:nth-child(even) td { background-color: #fafafa; }
+
+/* Column width hints, applied via <colgroup> from the section registry. */
+col.col-id       { width: 17mm; }
+col.col-priority { width: 16mm; }
+col.col-owner    { width: 30mm; }
+col.col-actor    { width: 30mm; }
+col.col-output   { width: 38mm; }
+col.col-dir      { width: 26mm; }
+col.col-freq     { width: 30mm; }
+col.scope-in     { width: 50%; }
+col.scope-out    { width: 50%; }
+
+.req-id {
+  font-family: 'SF Mono', 'Consolas', 'Liberation Mono', monospace;
+  font-size: 8pt;
+  font-weight: 700;
+  color: var(--navy);
+  white-space: nowrap;
+}
+
+/* Priority and severity words carry weight in a vendor negotiation.
+   Give them visual weight to match. */
+td:has(> .p-must) { }
+.priority-Must,  td.prio-must    { color: var(--red);   font-weight: 700; }
+.priority-Should, td.prio-should { color: var(--amber); font-weight: 600; }
+.priority-Could,  td.prio-could  { color: var(--ink-mute); font-weight: 500; }
+td.sev-critical { color: var(--red);   font-weight: 700; }
+td.sev-high     { color: var(--amber); font-weight: 600; }
+
+/* Scope table: in/out columns read as opposites at a glance. */
+.section-scope td:first-child { background: #ecfdf5 !important; }
+.section-scope td:last-child  { background: #fef2f2 !important; }
+.section-scope th:first-child { color: var(--green); }
+.section-scope th:last-child  { color: var(--red); }
+
+/* --------------------------------------------- acceptance criteria ------- */
+
+.ac-block {
+  border: 1px solid var(--rule);
+  border-left: 3pt solid var(--navy);
+  border-radius: 2pt;
+  padding: 3mm 3.5mm;
+  margin-bottom: 3mm;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  background: #fcfcfd;
+}
+
+.ac-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2mm;
+  padding-bottom: 1.5mm;
+  border-bottom: 1px solid var(--rule);
+}
+
+.ac-id {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 8.5pt;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.ac-ref {
+  font-size: 7.5pt;
+  color: var(--ink-mute);
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+/* The gutter must clear the longest keyword in ANY locale — Indonesian
+   "DIBERIKAN" is wider than "GIVEN", so the width is set for the worst case
+   rather than per-language. */
+.ac-line {
+  font-size: 8.5pt;
+  line-height: 1.5;
+  margin-bottom: 1mm;
+  padding-left: 21mm;
+  text-indent: -21mm;
+}
+
+.gwt {
+  display: inline-block;
+  width: 20mm;
+  text-indent: 0;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--navy);
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------- roadmap phases ------ */
+
+.phase-block {
+  border: 1px solid var(--rule);
+  border-radius: 3pt;
+  padding: 3.5mm 4mm 4mm 4mm;
+  margin-bottom: 4mm;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  background: #fcfcfd;
+}
+
+.phase-head {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  padding-bottom: 2.5mm;
+  margin-bottom: 2.5mm;
+  border-bottom: 1.5pt solid var(--navy);
+}
+
+.phase-num {
+  flex: 0 0 auto;
+  width: 8mm;
+  height: 8mm;
+  border-radius: 50%;
+  background: var(--navy);
+  color: #fff;
+  font-size: 11pt;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phase-name {
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: var(--navy-deep);
+  line-height: 1.25;
+}
+
+.phase-theme {
+  font-size: 8pt;
+  color: var(--ink-mute);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  margin-top: 0.5mm;
+}
+
+.phase-desc {
+  font-size: 8.5pt;
+  line-height: 1.5;
+  margin: 0 0 3mm 0;
+  color: var(--ink-soft);
+}
+
+.chip-label {
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 1.5mm;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5mm;
+  margin-bottom: 3mm;
+}
+
+.chip {
+  display: inline-block;
+  background: var(--wash-navy);
+  border: 1px solid #c7d2fe;
+  color: var(--navy-deep);
+  font-size: 7.5pt;
+  font-weight: 600;
+  padding: 1mm 2.5mm;
+  border-radius: 8pt;
+  white-space: nowrap;
+}
+
+/* Action items print as an unticked checklist — the vendor works through it. */
+ul.phase-actions {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+ul.phase-actions li {
+  font-size: 8.5pt;
+  line-height: 1.45;
+  padding-left: 6mm;
+  text-indent: -6mm;
+  margin-bottom: 1.5mm;
+}
+
+ul.phase-actions li::before {
+  content: '☐';
+  display: inline-block;
+  width: 6mm;
+  text-indent: 0;
+  color: var(--navy);
+  font-size: 10pt;
+}
+
+/* ------------------------------------------------------------ mermaid ---- */
+
+.mermaid-figure {
+  page-break-inside: avoid;
+  break-inside: avoid;
+  margin: 0 0 5mm 0;
+  padding: 4mm;
+  border: 1px solid var(--rule);
+  border-radius: 3pt;
+  background: #fff;
+  text-align: center;
+}
+
+.mermaid-figure svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-figure figcaption {
+  font-size: 7.5pt;
+  color: var(--ink-mute);
+  margin-top: 2.5mm;
+  text-align: left;
+  border-top: 1px solid var(--rule);
+  padding-top: 2mm;
+}
+
+/* A diagram too tall for the remaining space starts its own page rather than
+   shrinking below legibility. The break is applied to the heading above it
+   where one exists (see src/pdf.js), so the heading travels with its figure. */
+.mermaid-figure.tall,
+h2.tall-lead,
+h3.tall-lead { page-break-before: always; break-before: page; }
+h3.tall-lead { margin-top: 0; }
+
+/* ------------------------------------------------------------ utility ---- */
+
+.page-break { page-break-before: always; break-before: page; }
+
+.note {
+  background: var(--wash-navy);
+  border-left: 3pt solid var(--navy);
+  padding: 3mm 3.5mm;
+  font-size: 8.5pt;
+  margin: 0 0 4mm 0;
+  page-break-inside: avoid;
+}
+
+/* Screen preview: give the HTML a page-like frame so what you see when you
+   open the intermediate .html is close to what prints. */
+@media screen {
+  body {
+    max-width: 190mm;
+    margin: 0 auto;
+    padding: 16mm;
+    background: #fff;
+  }
+}
+
+/* ------------------------------------------------------- brief profile ---- */
+
+.cover-type-sub {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* Acceptance criteria as rows rather than cards. The keyword needs to read as
+   a label without the gutter the card layout provides. */
+td strong {
+  color: var(--navy);
+  font-size: 7.5pt;
+  letter-spacing: 0.05em;
+}

@@ -101,7 +101,7 @@ export default function RemoteUserAdmin() {
           This is the only way anyone gets in — there's no self-signup. Send them the username and
           temporary password privately (Slack DM, in person), not in a group channel or email thread.
         </p>
-        <div className="grid sm:grid-cols-2 gap-3 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
           <input className="field" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="field" placeholder="Work email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <select className="field" value={level} onChange={(e) => setLevel(e.target.value as Persona)}>

@@ -3,6 +3,9 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import dotenv from 'dotenv';
+import { runRoiTcoEngine, RoiEngineConfig } from './src/lib/roiTcoEngine.js';
+import { buildDefaultConfig } from './src/lib/roiTcoDefaults.js';
+import { FINANCE_PROCESS_TEMPLATES } from './src/data/financeProcessTemplates.js';
 
 // Load .env.local first (developer secrets), then fall back to .env. dotenv does
 // not overwrite already-set vars, so the first file to define a key wins.
@@ -946,6 +949,57 @@ app.post('/api/ai/propose-deployment', async (req, res) => {
 });
 
 /**
+ * POST /api/finance/roi-tco — ROI/TCO calculation engine for group-finance
+ * document/process automation (see src/lib/roiTcoEngine.ts for the model).
+ *
+ * This is deterministic math, not an LLM call — the frontend
+ * (FinanceRoiTcoPanel.tsx) runs the same engine module directly, client-side,
+ * for instant recompute as assumptions are edited. This route exists for
+ * parity with the app's other calculation endpoints and for any non-browser
+ * caller (e.g. scripted exports) that wants the same numbers without
+ * duplicating the model.
+ *
+ * Accepts either:
+ *   { templateKey, docsPerMonth, oldProcessMonthlyCostIDR, overrides? }  — build a config from a finance process template, or
+ *   { config: RoiEngineConfig }                                          — run a fully custom config as-is.
+ */
+app.post('/api/finance/roi-tco', (req, res) => {
+  try {
+    const body = req.body as {
+      config?: RoiEngineConfig;
+      templateKey?: string;
+      docsPerMonth?: number;
+      oldProcessMonthlyCostIDR?: number;
+      overrides?: Parameters<typeof buildDefaultConfig>[0]['overrides'];
+    };
+
+    let config: RoiEngineConfig;
+    if (body.config) {
+      config = body.config;
+    } else {
+      const template = FINANCE_PROCESS_TEMPLATES.find((t) => t.key === body.templateKey);
+      if (!template) {
+        return res.status(400).json({ error: `Unknown or missing templateKey. Valid keys: ${FINANCE_PROCESS_TEMPLATES.map((t) => t.key).join(', ')}` });
+      }
+      if (!body.docsPerMonth || !body.oldProcessMonthlyCostIDR) {
+        return res.status(400).json({ error: 'docsPerMonth and oldProcessMonthlyCostIDR are required.' });
+      }
+      config = buildDefaultConfig({
+        template,
+        docsPerMonth: body.docsPerMonth,
+        oldProcessMonthlyCostIDR: body.oldProcessMonthlyCostIDR,
+        overrides: body.overrides,
+      });
+    }
+
+    const result = runRoiTcoEngine(config);
+    return res.json({ config, result });
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message || 'Failed to run ROI/TCO engine.' });
+  }
+});
+
+/**
  * POST /api/ai/meeting-summary — AI Meeting Assistant endpoint.
  * Takes a transcript/notes text and team member context to produce a structured note
  * with summary, decisions, open questions, and action items with assignees.
@@ -1098,6 +1152,25 @@ app.post('/api/blueprint', async (req, res) => {
     res.json({ ok: true, data });
   } catch (err) {
     res.json({ ok: false, error: err instanceof Error ? err.message : 'Request failed.' });
+  }
+});
+
+// VPRS PDF pack generator — shares api/_lib/vprsPdf.ts with the Vercel
+// serverless entry (api/vprs-pdf.ts). Locally this renders with whatever
+// Chromium vprs-pdf/src/pdf.js discovers on disk (see PLAYWRIGHT_BROWSERS_PATH);
+// on Vercel the same shared module resolves @sparticuz/chromium instead —
+// see api/_lib/vprsPdf.ts's top comment for that pairing.
+app.post('/api/vprs-pdf', async (req, res) => {
+  try {
+    const { generateVprsPdfPack } = await import('./api/_lib/vprsPdf');
+    if (!req.body?.proc || !req.body?.plan) {
+      return res.status(400).json({ ok: false, error: 'Missing proc or plan in request body.' });
+    }
+    const data = await generateVprsPdfPack(req.body);
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error('vprs-pdf: generation failed', err);
+    res.json({ ok: false, error: err instanceof Error ? err.message : 'VPRS pack generation failed.' });
   }
 });
 

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, ArrowLeftRight, LockKeyhole, UserCog } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, ArrowLeftRight, LockKeyhole } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import Sidebar from './Sidebar';
 import ProcessCatalogue from './ProcessCatalogue';
@@ -28,59 +28,9 @@ import {
   UserProfile,
 } from '../types';
 import { greeting } from '../lib/utils';
+import { LanguageProvider, useLanguage } from '../lib/i18n';
 
-const PERSONA_LABELS: Record<Persona, string> = {
-  L1: 'CFO',
-  L2: 'GM / Head',
-  L3: 'Manager',
-  L4: 'Executor',
-  Admin: 'Admin',
-};
-
-export default function Workspace({
-  profile,
-  currentPersona,
-  setCurrentPersona,
-  initialTab,
-  focusProcessId,
-  clearFocusProcess,
-  processes,
-  availableSystems,
-  onUpdateSystems,
-  notifications,
-  adminBroadcastLogs,
-  improvementItems,
-  projectsManaged = [],
-  teamMembers = [],
-  transcripts = [],
-  meetingNotes = [],
-  ganttTasks = [],
-  projectOkrs = [],
-  onSaveProcess,
-  onDeleteProcess,
-  onAddSystem,
-  onMarkRead,
-  onActionNotification,
-  onTriggerReminder,
-  onTriggerAdminNotification,
-  onAddImprovementItem,
-  onUpdateImprovementItem,
-  onUpdateProject,
-  onAddProject,
-  onDeleteProject,
-  onAddTeamMember,
-  onRemoveTeamMember,
-  onAddTranscript,
-  onAddMeetingNote,
-  onUpdateMeetingNote,
-  onUpdateActionItemStatus,
-  onAddGanttTask,
-  onUpdateGanttTask,
-  onUpdateOkrKeyResult,
-  onCaptureNew,
-  onLock,
-  onImportData,
-}: {
+type WorkspaceProps = {
   profile: UserProfile;
   currentPersona: Persona;
   setCurrentPersona: (persona: Persona) => void;
@@ -133,12 +83,79 @@ export default function Workspace({
     },
     mode: 'merge' | 'overwrite'
   ) => void;
-}) {
+};
+
+export default function Workspace(props: WorkspaceProps) {
+  return (
+    <LanguageProvider>
+      <WorkspaceShell {...props} />
+    </LanguageProvider>
+  );
+}
+
+function WorkspaceShell({
+  profile,
+  currentPersona,
+  setCurrentPersona,
+  initialTab,
+  focusProcessId,
+  clearFocusProcess,
+  processes,
+  availableSystems,
+  onUpdateSystems,
+  notifications,
+  adminBroadcastLogs,
+  improvementItems,
+  projectsManaged = [],
+  teamMembers = [],
+  transcripts = [],
+  meetingNotes = [],
+  ganttTasks = [],
+  projectOkrs = [],
+  onSaveProcess,
+  onDeleteProcess,
+  onAddSystem,
+  onMarkRead,
+  onActionNotification,
+  onTriggerReminder,
+  onTriggerAdminNotification,
+  onAddImprovementItem,
+  onUpdateImprovementItem,
+  onUpdateProject,
+  onAddProject,
+  onDeleteProject,
+  onAddTeamMember,
+  onRemoveTeamMember,
+  onAddTranscript,
+  onAddMeetingNote,
+  onUpdateMeetingNote,
+  onUpdateActionItemStatus,
+  onAddGanttTask,
+  onUpdateGanttTask,
+  onUpdateOkrKeyResult,
+  onCaptureNew,
+  onLock,
+  onImportData,
+}: WorkspaceProps) {
+  const { language, setLanguage, t } = useLanguage();
   const [currentTab, setCurrentTab] = useState(initialTab);
   const [selectedViewProcess, setSelectedViewProcess] = useState<Process | null>(
     () => (focusProcessId && initialTab === 'catalogue' ? processes.find((p) => p.id === focusProcessId) ?? null : null),
   );
   const [showDataHub, setShowDataHub] = useState(false);
+
+  // User menu — tap-to-toggle (hover is a bonus on desktop, but phones have no
+  // mouse, so a pure CSS :hover dropdown is unreachable on touch).
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setShowUserMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserMenu]);
 
   // Keep the open detail view in sync when a process is updated elsewhere.
   useEffect(() => {
@@ -210,46 +227,125 @@ export default function Workspace({
       />
 
       <div className="flex-1 flex flex-col min-w-0 print:h-auto print:overflow-visible">
-        {/* Header */}
-        <header className="app-header px-6 md:px-10 pt-7 pb-2 flex items-end justify-between gap-4 flex-wrap print:pb-6 print:border-b print:border-line">
-          <div>
+        {/* Header — left 60%: greeting + subtitle + KPIs · right 40%: primary/secondary CTA + user menu */}
+        <header className="app-header px-4 sm:px-6 md:px-10 pt-6 sm:pt-7 pb-5 grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-6 print:pb-6 print:border-b print:border-line">
+          {/* Left 60% */}
+          <div className="md:col-span-3 min-w-0">
             <h1 className="font-display text-3xl md:text-4xl font-light tracking-tight">
-              {greeting()}, <span className="font-semibold">{profile.name.split(' ')[0]}!</span>
+              {greeting(language)}, <span className="font-semibold">{profile.name.split(' ')[0]}!</span>
             </h1>
-            <p className="text-sm text-mute mt-1">Let&rsquo;s make the way you work visible.</p>
-          </div>
-          <div className="flex items-center gap-5 print:hidden">
-            <div className="text-right hidden sm:block">
-              <div className="text-[11px] font-semibold text-mute">Processes documented</div>
-              <div className="font-display text-2xl font-semibold leading-tight">
-                {processes.length}
-                <span className="text-sm text-faint font-normal ml-1.5">{myProcessCount} yours</span>
+            <p className="text-sm text-mute mt-1">{t('header_subtitle')}</p>
+
+            <div className="flex items-center gap-6 mt-4 print:hidden">
+              <div>
+                <div className="text-[11px] font-semibold text-mute">{t('header_processes_documented')}</div>
+                <div className="font-display text-2xl font-semibold leading-tight">
+                  {processes.length}
+                  <span className="text-sm text-faint font-normal ml-1.5">{myProcessCount} {t('header_yours')}</span>
+                </div>
+              </div>
+              <div className="w-px h-8 bg-line" />
+              <div>
+                <div className="text-[11px] font-semibold text-mute">{t('header_avg_completeness')}</div>
+                <div className="font-display text-2xl font-semibold leading-tight">{avgCompleteness}%</div>
               </div>
             </div>
-            <div className="text-right hidden md:block">
-              <div className="text-[11px] font-semibold text-mute">Avg. completeness</div>
-              <div className="font-display text-2xl font-semibold leading-tight">{avgCompleteness}%</div>
-            </div>
+          </div>
+
+          {/* Right 40% */}
+          <div className="md:col-span-2 flex items-center justify-end gap-3 print:hidden flex-wrap">
             {currentPersona !== 'Admin' && (
-              <button onClick={onCaptureNew} className="btn-dark print:hidden">
-                <Plus size={16} /> Capture process
+              <button onClick={onCaptureNew} className="btn-dark" title="Primary action">
+                <Plus size={16} /> {t('header_capture_process')}
               </button>
             )}
             <button
               onClick={() => setShowDataHub(true)}
-              className="btn-ghost flex items-center gap-2 !py-2.5 !px-3 print:hidden"
+              className="btn-ghost flex items-center gap-2 !py-2.5 !px-3"
               title="Transfer local data (Import/Export)"
               aria-label="Transfer local data (Import/Export)"
             >
               <ArrowLeftRight size={15} />
-              <span className="hidden sm:inline">Transfer Data</span>
+              <span className="hidden sm:inline">{t('header_transfer_data')}</span>
             </button>
-            <Avatar name={profile.name} size={42} />
+
+            {/* User menu — single button; tap or hover reveals View As + Log out */}
+            <div ref={userMenuRef} className="relative group shrink-0">
+              <button
+                onClick={() => setShowUserMenu((v) => !v)}
+                className={`rounded-full ring-2 transition-all cursor-pointer ${showUserMenu ? 'ring-veil' : 'ring-transparent group-hover:ring-veil'}`}
+                title={`${profile.name} · ${t('persona_' + currentPersona)}`}
+                aria-label="User menu"
+                aria-expanded={showUserMenu}
+              >
+                <Avatar name={profile.name} size={42} />
+              </button>
+
+              {/* Hover bridge + dropdown — visible on tap (showUserMenu) or hover (desktop) */}
+              <div
+                className={`absolute right-0 top-full pt-2 z-50 transition-all duration-150 ${
+                  showUserMenu
+                    ? 'opacity-100 visible translate-y-0 pointer-events-auto'
+                    : 'opacity-0 invisible translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:pointer-events-auto'
+                }`}
+              >
+                <div className="w-52 max-w-[calc(100vw-2rem)] bg-white border border-line rounded-2xl shadow-xl p-2.5">
+                  {(profile.role === 'Admin' || profile.role === 'L1') && (
+                    <>
+                      <div className="text-[10px] font-bold text-faint tracking-wide px-1.5 pb-1.5">{t('header_view_as').toUpperCase()}</div>
+                      <div className="flex items-center gap-1 px-0.5 pb-2">
+                        {(['L1', 'L2', 'L3', 'L4', 'Admin'] as Persona[]).map((level) => (
+                          <button
+                            key={level}
+                            onClick={() => {
+                              handlePersonaChange(level);
+                              setShowUserMenu(false);
+                            }}
+                            title={`${t('header_view_as')} ${t('persona_' + level)} (${level})`}
+                            className={`flex-1 h-8 rounded-lg text-[10px] font-bold grid place-items-center transition-all cursor-pointer ${
+                              currentPersona === level ? 'bg-ink text-citron' : 'text-mute hover:bg-veil/60 hover:text-ink'
+                            }`}
+                          >
+                            {level === 'Admin' ? 'AD' : level}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="h-px bg-line my-0.5" />
+                    </>
+                  )}
+
+                  {/* Language switch */}
+                  <div className="text-[10px] font-bold text-faint tracking-wide px-1.5 pb-1.5">{t('header_language').toUpperCase()}</div>
+                  <div className="flex items-center gap-1 px-0.5 pb-2">
+                    {(['en', 'id'] as const).map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => setLanguage(lang)}
+                        title={lang === 'en' ? 'English' : 'Bahasa Indonesia'}
+                        className={`flex-1 h-8 rounded-lg text-[11px] font-bold grid place-items-center transition-all cursor-pointer ${
+                          language === lang ? 'bg-ink text-citron' : 'text-mute hover:bg-veil/60 hover:text-ink'
+                        }`}
+                      >
+                        {lang === 'en' ? 'EN' : 'ID'}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="h-px bg-line my-0.5" />
+
+                  <button
+                    onClick={onLock}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-semibold text-mute hover:bg-rose-50 hover:text-rose-500 transition-colors cursor-pointer"
+                  >
+                    <LockKeyhole size={14} /> {t('header_log_out')}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto px-6 md:px-10 py-6 print:h-auto print:overflow-visible">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 pt-6 pb-24 sm:pb-6 print:h-auto print:overflow-visible">
           <div className="max-w-6xl mx-auto space-y-6 pb-10">
             {currentTab === 'dashboard' &&
               (currentPersona === 'L3' ? (
@@ -377,41 +473,6 @@ export default function Workspace({
           />
         )}
       </AnimatePresence>
-
-      {/* Floating Action Button */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end group print:hidden">
-        <div className="flex flex-col items-center gap-2 mb-2 opacity-0 scale-y-0 group-hover:opacity-100 group-hover:scale-y-100 origin-bottom transition-all duration-200">
-          {(profile.role === 'Admin' || profile.role === 'L1') && (
-            <div className="flex flex-col items-center gap-1 bg-white p-2 rounded-full shadow-lg border border-line">
-              <span className="text-[9px] font-bold text-faint tracking-wide text-center leading-tight mb-1 pt-1">VIEW<br/>AS</span>
-              {(['L1', 'L2', 'L3', 'L4', 'Admin'] as Persona[]).map((level) => (
-                <button
-                  key={level}
-                  onClick={() => handlePersonaChange(level)}
-                  title={`View as ${PERSONA_LABELS[level]} (${level})`}
-                  className={`w-9 h-9 rounded-full text-[10px] font-bold grid place-items-center transition-all cursor-pointer ${
-                    currentPersona === level ? 'bg-veil text-ink' : 'text-faint hover:bg-canvas hover:text-ink'
-                  }`}
-                >
-                  {level === 'Admin' ? 'AD' : level}
-                </button>
-              ))}
-            </div>
-          )}
-          <button
-            onClick={onLock}
-            className="w-12 h-12 rounded-full bg-white text-mute shadow-lg border border-line grid place-items-center hover:bg-rose-50 hover:text-rose-500 hover:border-rose-200 transition-all cursor-pointer"
-            title="Log out"
-          >
-            <LockKeyhole size={18} />
-          </button>
-        </div>
-        
-        {/* Main FAB Trigger */}
-        <button className="w-14 h-14 rounded-full bg-ink text-white shadow-xl grid place-items-center hover:bg-ink-deep hover:scale-105 transition-all cursor-pointer">
-          <UserCog size={22} />
-        </button>
-      </div>
     </div>
   );
 }

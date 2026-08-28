@@ -1,4 +1,4 @@
-import { Process, ProcessStep } from '../types';
+import { Process, ProcessStep, RiceScore } from '../types';
 
 export function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -115,12 +115,43 @@ export function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export function greeting(): string {
+export function greeting(language: 'en' | 'id' = 'en'): string {
   const h = new Date().getHours();
+  if (language === 'id') {
+    if (h < 5) return 'Masih kerja ya';
+    if (h < 12) return 'Selamat pagi';
+    if (h < 17) return 'Selamat siang';
+    return 'Selamat malam';
+  }
   if (h < 5) return 'Working late';
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
+}
+
+/**
+ * RICE Score = (Reach × Impact × Confidence) ÷ Effort.
+ * Reach = n of people; Impact = rupiah or time saving; Confidence = 0-100 (%);
+ * Effort = effort to deliver (time / money that has to be spent).
+ */
+export function computeRiceScore(rice: RiceScore): number {
+  if (!rice.effort) return 0;
+  return (rice.reach * rice.impact * (rice.confidence / 100)) / rice.effort;
+}
+
+export function formatRiceImpact(rice: RiceScore): string {
+  if (rice.impactUnit === 'hours_per_month') return `${rice.impact.toLocaleString('id-ID')} hrs/mo`;
+  return `Rp ${rice.impact.toLocaleString('id-ID')}`;
+}
+
+/**
+ * Compact display for a RICE score. Raw scores can land anywhere from single
+ * digits (time-saving impact) to the hundreds of millions (rupiah impact),
+ * so abbreviate with K/M/B rather than showing every digit.
+ */
+export function formatRiceScoreValue(score: number): string {
+  if (!isFinite(score)) return '0';
+  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(score);
 }
 
 export function initials(name: string): string {
@@ -130,4 +161,18 @@ export function initials(name: string): string {
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join('');
+}
+
+/** Full "Rp 1.234.567" style IDR formatting — shared by the ROI/TCO panel. */
+export function formatIDR(val: number): string {
+  return 'Rp ' + Math.round(val).toLocaleString('id-ID');
+}
+
+/** Compact "Rp 1,2 Juta" / "Rp 3,4 Miliar" formatting for tight card layouts. */
+export function formatIDRCompact(val: number): string {
+  const sign = val < 0 ? '-' : '';
+  const abs = Math.abs(val);
+  if (abs >= 1_000_000_000) return `${sign}Rp ${(abs / 1_000_000_000).toFixed(2)} Miliar`;
+  if (abs >= 1_000_000) return `${sign}Rp ${(abs / 1_000_000).toFixed(1)} Juta`;
+  return `${sign}Rp ${Math.round(abs).toLocaleString('id-ID')}`;
 }

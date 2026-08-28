@@ -1,136 +1,24 @@
-import { useState } from 'react';
-import { Sparkles, FileText, Table, Users, Landmark, Layers, ArrowRight, Download, CheckCircle, Receipt, HardDrive, RefreshCw, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Sparkles, FileText, Table, Landmark, Layers, Download, CheckCircle, RefreshCw, X, AlertTriangle, Loader2 } from 'lucide-react';
 import { Process } from '../types';
+import {
+  isRemoteEnabled,
+  listRemotePrdEngines,
+  deleteRemotePrdEngine,
+  syncRemotePrdEngines,
+  PrdEngineRecord,
+} from '../lib/blueprintApi';
+import { loadPrdEngines, deletePrdEngineLocal, syncPrdEnginesLocal } from '../lib/prdEngineLocal';
+import { PRD_ENGINE_ICONS } from '../data/prdEngineSeed';
+import { PRICING_STANDARDS } from '../data/pricingStandards';
 
-// Convert USD to IDR at 1 USD = Rp 16.000
-const toIDR = (usd: number) => usd * 16000;
+function getRemoteToken(): string | null {
+  return sessionStorage.getItem('bp_remote_token');
+}
 
-const formatIDR = (val: number) => {
-  if (val >= 1000000000) {
-    return `Rp ${(val / 1000000000).toFixed(2)} Miliar`;
-  }
-  if (val >= 1000000) {
-    return `Rp ${(val / 1000000).toFixed(1)} Juta`;
-  }
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(val);
-};
-
-// Pricing standards basis (in IDR)
-const PRICING_STANDARDS = [
-  { item: 'Google Gemini 1.5 Flash (Input)', rate: 'Rp 1.200', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Sangat hemat untuk ekstraksi data masal dan pencocokan teks terstruktur.' },
-  { item: 'Google Gemini 1.5 Flash (Output)', rate: 'Rp 4.800', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Digunakan untuk menyusun format jawaban JSON atau draf jurnal akun.' },
-  { item: 'Google Gemini 1.5 Pro (Input)', rate: 'Rp 20.000', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Ideal untuk analisis finansial mendalam dan penaksiran tren likuiditas.' },
-  { item: 'Google Gemini 1.5 Pro (Output)', rate: 'Rp 80.000', unit: 'per 1.000.000 tokens', category: 'LLM Token', desc: 'Digunakan untuk menyusun komentar varians CAPEX dan narasi rekomendasi CFO.' },
-  { item: 'Jasa SMS OTP (Gateway Indonesia)', rate: 'Rp 350', unit: 'per sukses transaksi', category: 'Keamanan / Otentikasi', desc: 'Verifikasi keamanan dua langkah (MFA) bagi supervisor sebelum persetujuan.' },
-  { item: 'WhatsApp Business API Gateway', rate: 'Rp 450', unit: 'per sesi notifikasi', category: 'Keamanan / Otentikasi', desc: 'Mengirimkan alert verifikasi instan atau draf anomali ke manajer operasional.' },
-  { item: 'Make.com Workflow Scheduler', rate: 'Rp 144.000', unit: 'per bulan (Standard)', category: 'Orkestrasi', desc: 'Mengatur cron-job berkala, webhook trigger, dan sinkronisasi antar-sistem.' },
-  { item: 'Secure OCR Cloud (PDF.co)', rate: 'Rp 784.000', unit: 'per bulan', category: 'Ekstraksi Dokumen', desc: 'Mendigitalkan kuitansi, klaim medis, atau cetakan invoice beresolusi rendah.' },
-  { item: 'RPA Unattended Runner Runtime', rate: 'Rp 1.600.000', unit: 'per bulan', category: 'Otomasi Desktop', desc: 'Melakukan klik otomatis pada portal DJP PPN atau portal e-Claim BPJS.' },
-];
-
-const BASE_ENGINES = [
-  {
-    id: 'engine-claims',
-    title: 'AI Claims & Billing Settlement Engine',
-    icon: Users,
-    description: 'Unified billing audit and claim verification system bridging HIS patient records and public insurance portals.',
-    targetAudience: 'Billing Analysts, Accounts Receivable (AR) Officers, Branch Finance Managers',
-    masterUsers: 'AR Admin Staff, BPJS Verification Officers, Supervisor Keuangan Siloam',
-    ecosystemApps: 'BPJS e-Claim Portal, KAIROS Hospital Information System (HIS), CIMB Niaga Cash Management, Microsoft Excel, Microsoft Dynamics 365 ERP',
-    overlappingProcesses: ['BPJS Claims Submission & Reconciliation', 'Physician Fee (Honorarium) Verification & Reconciliation'],
-    capexLogic: 'Penyusunan pipeline integrasi API KAIROS HIS ke endpoint klaim, otentikasi aman gateway BPJS, dan visual audit dashboard gate untuk Supervisor.',
-    opexLogic: 'Penggunaan Gemini 1.5 Flash untuk parsing aktivitas pelayanan vs batasan tarif BPJS (berdasarkan token), OTP verifikasi transaksi, serta scheduler bulanan Make.com.',
-    metrics: {
-      volume: '15.000 klaim & aktivitas dokter / bulan',
-      effort: 'Mengurangi beban manual dari 220 jam menjadi 25 jam sebulan',
-      annualSavings: formatIDR(toIDR(45000)), // dynamic and structured
-      payback: '2 Bulan',
-    },
-    specifications: [
-      'Konektivitas otomatis ke database lokal HIS (Fetch aktivitas & diagnosa pasien).',
-      'Validasi kepatuhan tarif INA-CBG menggunakan LLM berbasis prompt ruleset.',
-      'Antarmuka khusus supervisor untuk menyetujui draf honorarium dokter.',
-      'Postingan otomatis voucher piutang ke Microsoft Dynamics 365 ERP via REST API.'
-    ]
-  },
-  {
-    id: 'engine-ap',
-    title: 'Intelligent Invoice & AP Automation Engine',
-    icon: Receipt,
-    description: 'Intelligent accounts payable orchestrator processing multi-vendor supply chain invoices with automatic ERP ledger entry.',
-    targetAudience: 'Accounts Payable Officers, Procurement Admins, Treasury Leads',
-    masterUsers: 'AP Officers, Procurement Managers, Accounting Supervisor',
-    ecosystemApps: 'Microsoft Dynamics 365 ERP, Supplier Portal Siloam, Secure OCR Service, Microsoft Excel, Local Bank Transfers',
-    overlappingProcesses: ['Vendor Invoice 3-Way Match & AP Voucher Generation', 'AI-as-a-Service Guide Reconciliation & Journaling'],
-    capexLogic: 'Konfigurasi schema OCR dinamis untuk berbagai template supplier farmasi, mapping relational PO/GRN database, dan integration module di D365.',
-    opexLogic: 'Gemini 1.5 Flash untuk ekstraksi tabel multi-halaman pada invoice fisik (token), langganan API OCR PDF.co, dan trigger otomatis via Make.com.',
-    metrics: {
-      volume: '8.000 invoice vendor & rekonsiliasi bank / bulan',
-      effort: 'Mengurangi beban input manual dari 350 jam menjadi 30 jam sebulan',
-      annualSavings: formatIDR(toIDR(62000)),
-      payback: '3 Bulan',
-    },
-    specifications: [
-      'Penerimaan berkas invoice digital (PDF) via e-mail webhook atau drop-folder.',
-      'Ekstraksi tabel baris-demi-baris (line-items) menggunakan kecerdasan visual Gemini OCR.',
-      'Pencocokan 3 arah (3-Way Match) antara Purchase Order, Goods Receipt Note, dan Vendor Invoice.',
-      'Pembuatan voucher draf AP di D365 ERP secara real-time.'
-    ]
-  },
-  {
-    id: 'engine-treasury',
-    title: 'Treasury & Cash Operations Engine',
-    icon: Landmark,
-    description: 'Strategic forecasting and liquidity allocation intelligence aggregating balances across 41 operational branch accounts.',
-    targetAudience: 'Treasury Managers, Corporate Cash Controllers, CFO (L-1)',
-    masterUsers: 'Treasury Staff, Finance GM, Chief Financial Officer',
-    ecosystemApps: 'CIMB Niaga Portal, Mandiri Cash Management, Microsoft Excel, D365 General Ledger',
-    overlappingProcesses: ['Cash Forecasting & Bank Liquidity Allocation', 'CAPEX Budget Variance Analysis'],
-    capexLogic: 'Pembuatan algoritma forecasting model, mapping CAPEX budget ceiling per departemen, serta visual analytics dashboard untuk L-1 & CFO.',
-    opexLogic: 'Penggunaan Gemini 1.5 Pro untuk melakukan penalaran tren (chain-of-thought) kas harian, menyusun laporan komentar tertulis varians budget secara otomatis, serta orkestrasi Make.com.',
-    metrics: {
-      volume: 'Daily forecast across 41 branches & 120 CAPEX categories',
-      effort: 'Mengurangi waktu penyusunan laporan dari 4 hari menjadi 15 menit',
-      annualSavings: formatIDR(toIDR(38000)),
-      payback: '4 Bulan',
-    },
-    specifications: [
-      'Koneksi harian otomatis untuk mengunduh laporan mutasi kas (MT940) via Cash Portal.',
-      'Konsolidasi saldo kas cabang Siloam secara real-time.',
-      'Analisis deviasi (variance) CAPEX departemen medis terhadap pagu anggaran.',
-      'Rekomendasi alokasi likuiditas harian otomatis yang draf-nya dikirim via WhatsApp Secure.'
-    ]
-  },
-  {
-    id: 'engine-tax',
-    title: 'Tax Compliance Automation Engine',
-    icon: HardDrive,
-    description: 'RPA and cognitive hybrid engine automating VAT reconciliation and direct filing to the national DJP Online tax portal.',
-    targetAudience: 'Tax Accountants, Tax Managers, Compliance Directors',
-    masterUsers: 'Tax Admin, Corporate Tax Supervisor, Audit Liaison',
-    ecosystemApps: 'DJP e-Faktur Web Portal, Microsoft Dynamics 365 ERP, DJP Online e-SPT, Excel Reconciliation sheets',
-    overlappingProcesses: ['Monthly VAT & PPN Taxation Filing'],
-    capexLogic: 'Pengembangan browser automation script untuk navigasi headless portal DJP, pemetaan e-Faktur ledger fields, dan enkripsi sertifikat elektronik pajak.',
-    opexLogic: 'Penggunaan RPA Unattended Bot runner license, pemecah Captcha berbasis OCR, dan Gemini 1.5 Flash untuk pemetaan klasifikasi kode pajak masukan.',
-    metrics: {
-      volume: '5.000 faktur pajak Masukan/Keluaran / bulan',
-      effort: 'Mengurangi durasi rekonsiliasi pajak dari 10 hari kerja menjadi 4 jam',
-      annualSavings: formatIDR(toIDR(28000)),
-      payback: '5 Bulan',
-    },
-    specifications: [
-      'Sinkronisasi berkala data GL pajak dari Dynamics 365 ERP.',
-      'Unduh massal berkas XML Faktur Pajak Masukan dari e-Faktur web portal menggunakan robot RPA.',
-      'Pencocokan silang otomatis nomor e-Faktur vs voucher ERP.',
-      'Pembuatan berkas e-SPT Masa PPN siap lapor secara otomatis.'
-    ]
-  }
-];
+// Pricing standards basis (in IDR) — sourced from the shared "Daftar Harga
+// Standar Indonesia" table (src/data/pricingStandards.ts) that also backs the
+// ROI/TCO engine, so both surfaces always agree on the same numbers.
 
 interface PRDHubProps {
   processes: Process[];
@@ -138,63 +26,131 @@ interface PRDHubProps {
 }
 
 export default function PRDHub({ processes, isAdmin }: PRDHubProps) {
-  const [engines, setEngines] = useState(BASE_ENGINES);
-  const [activeEngine, setActiveEngine] = useState<string>('engine-claims');
+  const [engines, setEngines] = useState<PrdEngineRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  const [activeEngine, setActiveEngine] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'prd' | 'pricing'>('prd');
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
-  
-  const [deletingEngine, setDeletingEngine] = useState<typeof BASE_ENGINES[0] | null>(null);
+  const [refreshError, setRefreshError] = useState('');
 
-  const handleRefresh = () => {
+  const [deletingEngine, setDeletingEngine] = useState<PrdEngineRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  // Load from the persistent source of truth on every mount — Postgres when
+  // remote auth is on (read fresh, so logout/login and a new session always
+  // see server state), localStorage otherwise. Never re-seeds hardcoded
+  // content over data the user has already changed.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      setLoadError('');
+      try {
+        let list: PrdEngineRecord[];
+        if (isRemoteEnabled()) {
+          const token = getRemoteToken();
+          if (!token) throw new Error('Not signed in — please log in again.');
+          list = await listRemotePrdEngines(token);
+        } else {
+          list = loadPrdEngines(window.localStorage);
+        }
+        if (cancelled) return;
+        setEngines(list);
+        setActiveEngine((prev) => (prev && list.some((e) => e.id === prev) ? prev : list[0]?.id ?? ''));
+      } catch (err) {
+        console.error('PRDHub: failed to load PRD engines', err);
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Failed to load PRD engines.');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
     setIsRefreshing(true);
+    setRefreshError('');
     setRefreshSuccess(false);
 
-    setTimeout(() => {
-      // Find processes that are not currently mapped in any BASE_ENGINES
-      const mappedProcessTitles = new Set(
-        BASE_ENGINES.flatMap(e => e.overlappingProcesses)
-      );
-      
-      const unmappedProcesses = processes.filter(p => !mappedProcessTitles.has(p.title) && p.title.trim() !== '');
+    const catalogueProcesses = processes.map((p) => ({ id: p.id, title: p.title }));
 
-      if (unmappedProcesses.length > 0) {
-        const newEngine = {
-          id: 'engine-dynamic-' + Date.now(),
-          title: 'Custom AI Orchestration Engine',
-          icon: Sparkles,
-          description: 'Auto-compiled orchestration engine derived from recently added organizational processes.',
-          targetAudience: 'Cross-functional Operations',
-          masterUsers: 'Process Owners, Analysts',
-          ecosystemApps: 'Internal API Gateway, Cloud Storage, ERP modules',
-          overlappingProcesses: unmappedProcesses.map(p => p.title),
-          capexLogic: 'Integration hooks for new custom workflows and AI orchestration logic.',
-          opexLogic: 'Token consumption for generative analysis and cloud automation execution.',
-          metrics: {
-            volume: 'Dynamically scaled based on process usage',
-            effort: 'Est. 40% reduction in manual tracking',
-            annualSavings: formatIDR(toIDR(25000)), 
-            payback: '6 Bulan',
-          },
-          specifications: [
-            'Dynamic data ingestion from user-defined inputs.',
-            'LLM-based categorization and decision routing.',
-            'Automated alerting and report generation.'
-          ]
-        };
-        setEngines([...BASE_ENGINES, newEngine]);
+    try {
+      let created = false;
+      let newEngine: PrdEngineRecord | null = null;
+
+      if (isRemoteEnabled()) {
+        const token = getRemoteToken();
+        if (!token) throw new Error('Not signed in — please log in again.');
+        console.log('[PRDHub] syncPrdEngines request', { processCount: catalogueProcesses.length });
+        const result = await syncRemotePrdEngines(token, catalogueProcesses);
+        console.log('[PRDHub] syncPrdEngines response', result);
+        created = result.created;
+        newEngine = result.engine;
       } else {
-        setEngines(BASE_ENGINES);
+        const result = syncPrdEnginesLocal(window.localStorage, catalogueProcesses);
+        created = result.created;
+        newEngine = result.engine;
       }
 
-      setIsRefreshing(false);
+      if (created && newEngine) {
+        setEngines((prev) => [...prev, newEngine as PrdEngineRecord]);
+        setActiveEngine(newEngine.id);
+      }
+
       setRefreshSuccess(true);
       setTimeout(() => setRefreshSuccess(false), 3000);
-    }, 1200);
+    } catch (err) {
+      console.error('[PRDHub] syncPrdEngines failed', err);
+      setRefreshError(err instanceof Error ? err.message : 'Failed to sync new processes.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingEngine || isDeleting) return;
+    const id = deletingEngine.id;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      if (isRemoteEnabled()) {
+        const token = getRemoteToken();
+        if (!token) throw new Error('Not signed in — please log in again.');
+        console.log('[PRDHub] deletePrdEngine request', { id });
+        await deleteRemotePrdEngine(token, id);
+        console.log('[PRDHub] deletePrdEngine confirmed', { id });
+      } else {
+        deletePrdEngineLocal(window.localStorage, id);
+      }
+
+      // Optimistic UI only after the write above is confirmed.
+      setEngines((prev) => {
+        const next = prev.filter((e) => e.id !== id);
+        setActiveEngine((current) => (current === id ? next[0]?.id ?? '' : current));
+        return next;
+      });
+      setDeletingEngine(null);
+    } catch (err) {
+      console.error('[PRDHub] deletePrdEngine failed', err);
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete architecture.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleExportPRD = (engineId: string) => {
-    const eng = engines.find(e => e.id === engineId);
+    const eng = engines.find((e) => e.id === engineId);
     if (!eng) return;
 
     const prdContent = `
@@ -212,7 +168,7 @@ ${eng.description}
 2. OVERLAPPING PROCESS CATALOGUE
 ----------------------------------
 This engine consolidates and eliminates functional redundancy for:
-${eng.overlappingProcesses.map(p => `- ${p}`).join('\n')}
+${eng.overlappingProcesses.map((p) => `- ${p}`).join('\n')}
 
 3. EXISTING APP ECOSYSTEM & INTEGRATIONS
 ----------------------------------
@@ -248,7 +204,8 @@ Make.com Scheduler: Rp 144.000 / month
     URL.revokeObjectURL(url);
   };
 
-  const currentEngine = engines.find(e => e.id === activeEngine) || engines[0];
+  const currentEngine = engines.find((e) => e.id === activeEngine) || engines[0];
+  const totalMappedProcesses = new Set(engines.flatMap((e) => e.overlappingProcesses)).size;
 
   return (
     <div className="space-y-6 animate-fade-up" id="prd-hub-view">
@@ -264,22 +221,30 @@ Make.com Scheduler: Rp 144.000 / month
               <p className="text-xs text-mute mt-0.5">Automated overlap analysis across processes with unified backend architectures, costing rules, and Indonesian standard pricing.</p>
             </div>
           </div>
-          
-          {refreshSuccess ? (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-xs font-semibold animate-fade-in">
-              <CheckCircle size={14} />
-              <span>Synced!</span>
-            </div>
-          ) : (
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="btn-outline flex items-center gap-1.5 !px-3 !py-1.5 !text-xs cursor-pointer hover:bg-canvas transition-colors disabled:opacity-50"
-            >
-              <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-              <span>{isRefreshing ? 'Syncing...' : 'Sync New Processes'}</span>
-            </button>
-          )}
+
+          <div className="flex flex-col items-end gap-1.5">
+            {refreshSuccess ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-xs font-semibold animate-fade-in">
+                <CheckCircle size={14} />
+                <span>Synced!</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="btn-outline flex items-center gap-1.5 !px-3 !py-1.5 !text-xs cursor-pointer hover:bg-canvas transition-colors disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                <span>{isRefreshing ? 'Syncing...' : 'Sync New Processes'}</span>
+              </button>
+            )}
+            {refreshError && (
+              <div className="flex items-center gap-1 text-[10px] text-rose-600 font-semibold max-w-[220px] text-right">
+                <AlertTriangle size={11} className="shrink-0" />
+                <span>{refreshError}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* View togglers */}
@@ -312,13 +277,27 @@ Make.com Scheduler: Rp 144.000 / month
       </div>
 
       {activeSubTab === 'prd' ? (
+        isLoading ? (
+          <div className="bg-white border border-line rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center space-y-3">
+            <Loader2 size={22} className="animate-spin text-mute" />
+            <p className="text-xs text-mute">Loading unified architectures…</p>
+          </div>
+        ) : loadError ? (
+          <div className="bg-white border border-rose-200 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center space-y-3">
+            <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-2">
+              <AlertTriangle size={20} />
+            </div>
+            <h4 className="font-semibold text-ink">Couldn't load the PRD Hub</h4>
+            <p className="text-xs text-mute max-w-sm">{loadError}</p>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Sidebar Engines List */}
           <div className="lg:col-span-4 space-y-3 print:hidden">
             <span className="text-[10px] font-bold text-mute tracking-wider uppercase px-1">Unified Architectures</span>
             <div className="space-y-2">
               {engines.map((e) => {
-                const IconComp = e.icon;
+                const IconComp = PRD_ENGINE_ICONS[e.iconKey] || Sparkles;
                 const isSelected = e.id === activeEngine;
                 return (
                   <button
@@ -347,7 +326,7 @@ Make.com Scheduler: Rp 144.000 / month
             <div className="p-4.5 bg-emerald-50 border border-emerald-100 rounded-2xl space-y-2.5">
               <span className="text-[10px] font-bold text-emerald-800 tracking-wider uppercase block">Overlap Analytics Summary</span>
               <p className="text-[11px] text-emerald-900 leading-relaxed">
-                By grouping these <strong className="text-emerald-900">7 individual process mappings</strong> into <strong className="text-emerald-900">4 core backend automation engines</strong>, Siloam Finance Directorate avoids redundant software licenses, streamlines supervisor gate reviews, and achieves a unified, cohesive application ecosystem.
+                By grouping <strong className="text-emerald-900">{totalMappedProcesses} individual process mapping{totalMappedProcesses === 1 ? '' : 's'}</strong> into <strong className="text-emerald-900">{engines.length} core backend automation engine{engines.length === 1 ? '' : 's'}</strong>, Siloam Finance Directorate avoids redundant software licenses, streamlines supervisor gate reviews, and achieves a unified, cohesive application ecosystem.
               </p>
             </div>
           </div>
@@ -365,6 +344,7 @@ Make.com Scheduler: Rp 144.000 / month
                 {isAdmin && (
                   <button
                     onClick={() => {
+                      setDeleteError('');
                       setDeletingEngine(currentEngine);
                     }}
                     className="btn-outline flex items-center gap-1.5 !text-xs !py-2 !px-4 shrink-0 cursor-pointer print:hidden text-rose-500 border-rose-200 hover:bg-rose-50 hover:border-rose-300"
@@ -411,7 +391,7 @@ Make.com Scheduler: Rp 144.000 / month
             {/* Overlapping processes */}
             <div className="space-y-2 print:break-inside-avoid">
               <span className="text-[10px] font-bold text-mute tracking-wider uppercase">Consolidated Catalog Processes (Eliminating Redundancy)</span>
-              <div className="grid sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {currentEngine.overlappingProcesses.map((p) => (
                   <div key={p} className="p-3 bg-canvas-soft border border-line/55 rounded-xl flex items-center gap-2">
                     <CheckCircle size={13} className="text-emerald-600 shrink-0" />
@@ -479,6 +459,7 @@ Make.com Scheduler: Rp 144.000 / month
             </div>
           )}
         </div>
+        )
       ) : (
         /* Standard Indonesia Unit Price Sheet */
         <div className="bg-white border border-line rounded-3xl p-6 shadow-sm space-y-5 animate-fade-up">
@@ -539,24 +520,31 @@ Make.com Scheduler: Rp 144.000 / month
             <p className="text-sm text-mute">
               Are you sure you want to completely delete the architecture <span className="font-semibold text-ink">"{deletingEngine.title}"</span>? This action cannot be undone.
             </p>
-            
+            {deleteError && (
+              <div className="flex items-center gap-1.5 text-xs text-rose-600 font-semibold justify-center">
+                <AlertTriangle size={13} className="shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
             <div className="flex justify-center gap-2 pt-4">
               <button
-                onClick={() => setDeletingEngine(null)}
-                className="px-4 py-2 rounded-xl text-sm font-semibold text-mute hover:bg-canvas transition-colors cursor-pointer w-full"
+                onClick={() => {
+                  setDeletingEngine(null);
+                  setDeleteError('');
+                }}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-mute hover:bg-canvas transition-colors cursor-pointer w-full disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  const newEngines = engines.filter(e => e.id !== deletingEngine.id);
-                  setEngines(newEngines);
-                  if (newEngines.length > 0) setActiveEngine(newEngines[0].id);
-                  setDeletingEngine(null);
-                }}
-                className="px-4 py-2 rounded-xl text-sm font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors cursor-pointer w-full"
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl text-sm font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors cursor-pointer w-full disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                Yes, Delete
+                {isDeleting ? <Loader2 size={14} className="animate-spin" /> : null}
+                {isDeleting ? 'Deleting…' : 'Yes, Delete'}
               </button>
             </div>
           </div>

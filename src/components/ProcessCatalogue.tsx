@@ -21,13 +21,10 @@ import {
   Copy,
   Check,
   Megaphone,
-  DollarSign,
-  TrendingUp,
   ShieldCheck,
   HeartHandshake,
   CreditCard,
   Activity,
-  Clock,
   Save,
   Download,
 } from 'lucide-react';
@@ -35,6 +32,8 @@ import { Persona, Process, SystemItem, DeploymentPlan } from '../types';
 import { SUBFUNCTIONS_LIST } from '../data/mockData';
 import { timeAgo } from '../lib/utils';
 import { Avatar, ClassChip, EmptyState, Meter, StatusChip } from './ui';
+import FinanceRoiTcoPanel from './FinanceRoiTcoPanel';
+import VprsPdfPanel from './VprsPdfPanel';
 
 function ProcessDetail({
   proc,
@@ -63,13 +62,19 @@ function ProcessDetail({
   const [expandedPhases, setExpandedPhases] = useState<number[]>([0]); // first phase open by default
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
-  // USD to IDR conversion (Rp 16.000 per USD)
+  // USD to IDR conversion — used below only for the roadmap's tool-subscription
+  // cost display. The ROI/TCO engine (FinanceRoiTcoPanel) uses its own
+  // configurable FX rate sourced from the shared pricing table.
   const toIDR = (usd: number) => usd * 16000;
   const formatIDR = (val: number) => {
     return 'Rp ' + Math.round(val).toLocaleString('id-ID');
   };
 
-  const isRoadmapSaved = !!(proc.savedDeploymentPlan && plan && JSON.stringify(proc.savedDeploymentPlan) === JSON.stringify(plan));
+  const isRoadmapSaved = !!(
+    proc.savedDeploymentPlan &&
+    plan &&
+    JSON.stringify(proc.savedDeploymentPlan) === JSON.stringify(plan)
+  );
 
   const handleSaveRoadmap = () => {
     if (plan && onSaveProcess) {
@@ -216,7 +221,7 @@ function ProcessDetail({
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-4 gap-5 mt-6 pt-5 border-t border-line">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-5 mt-6 pt-5 border-t border-line">
           <div>
             <div className="label">Owner</div>
             <div className="flex items-center gap-2">
@@ -461,94 +466,10 @@ function ProcessDetail({
               </div>
             </div>
 
-            {/* Value, Cost & Benefit Dashboard */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-1.5">
-                <TrendingUp size={14} className="text-citron-deep" />
-                <h4 className="font-display font-semibold text-xs text-ink uppercase tracking-wider">
-                  Value, Cost, &amp; Benefit Analysis (IDR)
-                </h4>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {/* ROI Card */}
-                <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Return on Investment</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-lg font-bold text-ink">+{plan.costBenefitAnalysis?.roiPercent || 380}%</span>
-                    <span className="text-[10px] text-emerald-600 font-semibold">ROI</span>
-                  </div>
-                  <div className="text-[10px] text-faint">
-                    Payback in <strong className="text-ink">{plan.costBenefitAnalysis?.paybackPeriodMonths || 3} months</strong>
-                  </div>
-                </div>
-
-                {/* Savings Card */}
-                <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Est. Annual Savings</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-base font-bold text-ink">{formatIDR(toIDR(plan.costBenefitAnalysis?.estimatedAnnualSavingsUSD || 32000))}</span>
-                  </div>
-                  <div className="text-[10px] text-faint">
-                    Ongoing labor &amp; error reduction
-                  </div>
-                </div>
-
-                {/* Labor Saved Card */}
-                <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Manual Effort Released</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-lg font-bold text-ink">{plan.costBenefitAnalysis?.manualHoursReducedPerMonth || 85}</span>
-                    <span className="text-[10px] text-mute">hours/mo</span>
-                  </div>
-                  <div className="text-[10px] text-faint">
-                    Re-allocated to high-value tasks
-                  </div>
-                </div>
-
-                {/* Dev & Tooling Cost Card */}
-                <div className="bg-white border border-line rounded-2xl p-3.5 space-y-1.5 shadow-sm">
-                  <span className="text-[9px] uppercase tracking-wider text-mute font-bold block">Annual Tooling &amp; OPEX</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-base font-bold text-ink">{formatIDR(toIDR(plan.costBenefitAnalysis?.annualSubscriptionCostUSD || 2400))}</span>
-                  </div>
-                  <div className="text-[10px] text-faint leading-tight mt-0.5">
-                    Excludes one-time dev cost of {formatIDR(toIDR(plan.costBenefitAnalysis?.developmentCostUSD || 6000))}
-                  </div>
-                </div>
-              </div>
-
-              {/* ROI & Pricing Logic Explainer Card */}
-              <div className="bg-gradient-to-r from-emerald-50/50 via-teal-50/25 to-canvas-soft border border-emerald-100 rounded-2xl p-4.5 space-y-3.5 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 shrink-0 mt-0.5">
-                    <Sparkles size={14} />
-                  </div>
-                  <div className="space-y-1">
-                    <h5 className="text-xs font-semibold text-ink-soft">
-                      ROI &amp; Vertex AI (Gemini Suite) Cost Logic
-                    </h5>
-                    <p className="text-[11px] text-mute leading-relaxed">
-                      Traditional RPA robot licenses typically demand upwards of <strong className="text-ink-soft">Rp 2.400.000 to Rp 8.000.000</strong> per month. In comparison, <strong className="text-emerald-700">Google Vertex AI (Gemini Model Suite)</strong> uses consumption-based token pricing. For a standard healthcare finance flow processing 10.000 invoices/claims a month, Gemini 1.5 Flash uses less than <strong className="text-emerald-700">Rp 75.000 (approx. $4.50)</strong> total! This maximizes margins and enables an accelerated payback timeline.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-3.5 border-t border-emerald-100/60 text-[11px]">
-                  <div className="space-y-1">
-                    <span className="font-semibold text-emerald-800 block">Value Offered Formula</span>
-                    <span className="text-mute block leading-normal">Hours Released × Staff Wage Rate + Prevented Claim Denial Leakage</span>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="font-semibold text-emerald-800 block">Gemini API Advantage</span>
-                    <span className="text-mute block leading-normal">Pay-per-token API pricing replaces expensive fixed software bot licenses</span>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="font-semibold text-emerald-800 block">Fast Break-Even</span>
-                    <span className="text-mute block leading-normal">No heavy upfront capital infrastructure; initial payback reached in ~3 months</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* ROI / TCO Analysis — replaces the old naive "RPA license vs. raw
+                token cost" card with the full Total Cost of Ownership engine
+                (see src/lib/roiTcoEngine.ts). */}
+            <FinanceRoiTcoPanel proc={proc} onSaveProcess={onSaveProcess} />
 
             {/* 4-Phase Accordion */}
             <div className="space-y-2.5">
@@ -632,7 +553,7 @@ function ProcessDetail({
             </div>
 
             {/* Subscriptions & Partnerships Matrix */}
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Tooling & Subscriptions */}
               <div className="bg-canvas border border-line rounded-2xl p-4.5 space-y-3.5">
                 <div className="flex items-center gap-2 border-b border-line/60 pb-2.5">
@@ -719,6 +640,11 @@ function ProcessDetail({
                 </div>
               </div>
             </div>
+
+            {/* VPRS Pack — turns this process + the roadmap above into the
+                print-ready procurement/vendor document (see
+                src/components/VprsPdfPanel.tsx and api/_lib/vprsPdf.ts). */}
+            <VprsPdfPanel proc={proc} plan={plan} />
           </div>
         )}
       </div>
@@ -874,22 +800,30 @@ export default function ProcessCatalogue({
 
       {/* Pill filters */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
           <input
-            className="field !rounded-full !py-2 !pl-9 !pr-4 !w-60 text-sm"
+            className="field !rounded-full !py-2 !pl-9 !pr-4 w-full sm:!w-60 text-sm"
             placeholder="Search title, owner, steps…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <select className="field !rounded-full !py-2 !px-4 !w-auto text-sm cursor-pointer" value={subFunction} onChange={(e) => setSubFunction(e.target.value)}>
+        <select
+          className="field !rounded-full !py-2 !px-4 max-w-[calc(50%-0.3125rem)] sm:max-w-none sm:!w-auto text-sm cursor-pointer"
+          value={subFunction}
+          onChange={(e) => setSubFunction(e.target.value)}
+        >
           <option value="">All lines of work</option>
           {SUBFUNCTIONS_LIST.map((sf) => (
             <option key={sf} value={sf}>{sf}</option>
           ))}
         </select>
-        <select className="field !rounded-full !py-2 !px-4 !w-auto text-sm cursor-pointer" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <select
+          className="field !rounded-full !py-2 !px-4 max-w-[calc(50%-0.3125rem)] sm:max-w-none sm:!w-auto text-sm cursor-pointer"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
           <option value="">Any status</option>
           {['Draft', 'Submitted', 'Refined', 'Approved'].map((s) => (
             <option key={s} value={s}>{s}</option>
@@ -923,14 +857,14 @@ export default function ProcessCatalogue({
           />
         )
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((proc) => {
             const systems = Array.from(new Set(proc.steps.flatMap((s) => s.systems)));
             return (
               <button
                 key={proc.id}
                 onClick={() => onSelectProcess(proc)}
-                className="card text-left p-5 flex flex-col gap-3 cursor-pointer transition-all hover:shadow-lift hover:-translate-y-0.5"
+                className="card text-left p-5 flex flex-col gap-3 min-w-0 cursor-pointer transition-all hover:shadow-lift hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between gap-2">
                   <StatusChip status={proc.status} />
@@ -953,7 +887,7 @@ export default function ProcessCatalogue({
                   <span className="text-[11px] font-bold text-mute">{proc.completenessScore}%</span>
                 </div>
                 {systems.length > 0 && (
-                  <div className="text-[11px] text-faint truncate">{systems.join(' · ')}</div>
+                  <div className="text-[11px] text-faint truncate min-w-0 w-full">{systems.join(' · ')}</div>
                 )}
               </button>
             );
