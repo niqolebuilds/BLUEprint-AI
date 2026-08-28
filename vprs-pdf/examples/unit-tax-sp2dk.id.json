@@ -1,0 +1,1152 @@
+{
+  "$schema": "../schema/vprs.schema.json",
+  "meta": {
+    "projectId": "BP-TAX-014",
+    "catalogRef": "PC-FIN-TAX-07 — Reviu Kepatuhan Pajak Unit & Dukungan SP2DK",
+    "title": "Reviu Kepatuhan Pajak Unit & Dukungan SP2DK",
+    "solutionType": "AI / Agentic AI",
+    "language": "id",
+    "organisation": "Siloam Hospitals Group",
+    "version": "1.0 — Diterbitkan untuk Penawaran Vendor",
+    "status": "Draf untuk RFP Vendor",
+    "businessUnit": "Group Finance — Tax Management (Kantor Pusat) & Finance Unit",
+    "processOwner": "Group Tax Manager",
+    "technicalOwner": "Head of Finance Systems / System Accountant",
+    "preparedBy": "Blueprint AI — Modul Kesiapan Produksi",
+    "issueDate": "27 Agustus 2026",
+    "classification": "Rahasia — Distribusi Vendor di Bawah NDA",
+    "readinessScore": "91%"
+  },
+  "overview": {
+    "problem": "SP2DK (Surat Permintaan Penjelasan atas Data dan/atau Keterangan) diterima unit rumah sakit dari KPP setempat dengan tenggat tanggapan 14 hari kalender. Menyusun tanggapan yang dapat dipertahankan menuntut rekonstruksi ekualisasi antara peredaran usaha yang dilaporkan, Dasar Pengenaan Pajak PPN, objek pemotongan/pemungutan, dan buku besar — data yang tersebar di sekurang-kurangnya empat sistem. Tim keuangan unit secara rutin menghabiskan 3–5 hari kerja waktu personel senior per surat, dan di bawah tekanan tenggat sebagian tanggapan dikirim dengan bukti pendukung yang belum lengkap, sehingga secara material meningkatkan peluang eskalasi menjadi pemeriksaan pajak.",
+    "objectives": [
+      "Menurunkan waktu penyusunan tanggapan SP2DK dari median 3–5 hari kerja menjadi kurang dari 1 hari kerja upaya reviewer.",
+      "Memastikan tidak ada tanggapan SP2DK yang keluar dari Grup tanpa paket bukti pendukung yang lengkap dan terreferensi ke sumbernya.",
+      "Mendeteksi selisih ekualisasi pemicu SP2DK secara proaktif dalam siklus triwulanan, sebelum diangkat oleh DJP.",
+      "Menghasilkan posisi yang konsisten dan dapat diaudit di seluruh entitas rumah sakit untuk kelas pertanyaan pajak yang sama."
+    ],
+    "currentState": "Manual. Petugas pajak unit membaca surat, menafsirkan data yang dipertanyakan DJP, meminta ekstraksi kepada Finance Systems, menyusun kertas kerja ekualisasi di Excel, membuat draf surat tanggapan di Word, lalu mengedarkannya untuk reviu melalui surel. Tidak ada register SP2DK terbuka di tingkat Grup, tidak ada format paket bukti yang baku, dan tidak ada pemanfaatan kembali posisi yang sebelumnya berhasil dipertahankan di unit lain.",
+    "targetState": "Alur kerja agentik menerima SP2DK, mengklasifikasikan isu perpajakannya, mengambil dan merekonsiliasi data pendukung, menyusun draf paket tanggapan yang seluruh angkanya bersitasi, lalu menyajikannya kepada Unit Financial Controller dan Group Tax Manager untuk direviu dan disetujui. Agen tidak pernah mengirimkan apa pun kepada DJP. Penyampaian melalui Coretax tetap merupakan tindakan manusia yang disengaja.",
+    "volumetrics": [
+      {
+        "metric": "Entitas rumah sakit / NPWP cabang dalam lingkup",
+        "value": "Fase 1: 6 unit · Rollout penuh: seluruh entitas Grup"
+      },
+      {
+        "metric": "SP2DK diterima (Grup, 12 bulan terakhir)",
+        "value": "Menunggu konfirmasi register Group Tax — lihat OQ-002"
+      },
+      {
+        "metric": "Konkurensi puncak",
+        "value": "Asumsi 8 SP2DK terbuka bersamaan di seluruh Grup"
+      },
+      {
+        "metric": "Tenggat tanggapan statutori",
+        "value": "14 hari kalender sejak tanggal SP2DK"
+      },
+      {
+        "metric": "Kewajiban retensi bukti",
+        "value": "10 tahun (UU KUP Pasal 28 ayat 11)"
+      }
+    ]
+  },
+  "solution": {
+    "summary": "Petugas kasus SP2DK berbasis AI agentik dengan pengawasan manusia, untuk penyusunan tanggapan SP2DK dan reviu ekualisasi pre-emptif. Agen bekerja sebagai spesialis pengambilan data dan penyusunan draf atas data pajak serta keuangan Grup, dengan penghentian mutlak sebelum setiap tindakan pelaporan ke pihak eksternal.",
+    "autonomyLevel": "Level 2 — Agen menjalankan pengambilan data, rekonsiliasi, dan penyusunan draf secara multi-langkah. Setiap artefak yang terlihat oleh pihak eksternal wajib memperoleh persetujuan manusia bernama. Tidak ada penulisan balik ke sistem sumber mana pun dan tidak ada pengiriman ke DJP.",
+    "agentPattern": "Rencanakan → Ambil Data → Rekonsiliasi → Susun Draf → Beri Sitasi → Eskalasikan untuk Persetujuan. Seluruh aritmetika dijalankan oleh perkakas deterministik; model bahasa hanya melakukan klasifikasi, pemilihan bukti, dan penyusunan narasi.",
+    "components": [
+      {
+        "component": "Intake & Klasifikasi SP2DK",
+        "responsibility": "Mengurai surat masuk (PDF/pindaian/ekspor Coretax); mengekstraksi KPP, nomor surat, tanggal, NPWP entitas, masa/tahun pajak, dan butir data yang dipertanyakan DJP. Mengklasifikasikannya ke salah satu arketipe isu yang telah ditetapkan."
+      },
+      {
+        "component": "Perkakas Pengambilan Bukti",
+        "responsibility": "Konektor deterministik yang mengkueri buku besar Microsoft Dynamics 365, arsip SPT, ekstrak e-Faktur/e-Bupot, dan rincian pendapatan HIS untuk entitas dan periode yang teridentifikasi."
+      },
+      {
+        "component": "Mesin Ekualisasi",
+        "responsibility": "Layanan perhitungan deterministik. Menjalankan rekonsiliasi peredaran usaha terhadap DPP PPN serta beban terhadap objek pemotongan/pemungutan, dan mengembalikan daftar selisih dengan keterlacakan hingga tingkat baris. Tanpa aritmetika oleh LLM."
+      },
+      {
+        "component": "Penyusun Tanggapan",
+        "responsibility": "Menghasilkan narasi surat tanggapan dan indeks bukti dalam Bahasa Indonesia sesuai format baku Grup, dengan sitasi sumber wajib pada setiap angka yang dinyatakan."
+      },
+      {
+        "component": "Manajer Kasus & SLA",
+        "responsibility": "Memelihara register SP2DK Grup, melacak tenggat 14 hari, menjalankan pengingat dan eskalasi, serta menyimpan jejak audit persetujuan."
+      },
+      {
+        "component": "Penjadwal Reviu Proaktif",
+        "responsibility": "Menjalankan logika ekualisasi yang sama secara triwulanan di seluruh entitas tanpa menunggu pemicu SP2DK, dan melaporkan selisih di atas ambang materialitas."
+      }
+    ]
+  },
+  "scope": {
+    "inScope": [
+      "Penerimaan dan klasifikasi SP2DK yang diterima melalui ekspor akun Coretax, surel terdaftar, dan pindaian surat fisik.",
+      "Lima arketipe isu perpajakan: ekualisasi PPN, ekualisasi peredaran usaha PPh Badan, PPh 21 tenaga ahli, PPh 23, dan PPh Pasal 4 ayat (2) final.",
+      "Pengambilan dan rekonsiliasi otomatis data buku besar, SPT, e-Faktur, dan e-Bupot untuk entitas dan periode yang dipertanyakan.",
+      "Penyusunan draf surat tanggapan dalam Bahasa Indonesia beserta paket bukti pendukung terindeks (PDF dan XLSX).",
+      "Alur reviu dan persetujuan manusia dua lapis dengan jejak audit lengkap yang tidak dapat diubah.",
+      "Register kasus SP2DK tingkat Grup dengan pelacakan SLA 14 hari, pengingat, dan eskalasi.",
+      "Reviu ekualisasi pre-emptif triwulanan pada seluruh entitas dalam lingkup.",
+      "Pustaka preseden berisi posisi Grup yang pernah disetujui, dapat ditelusuri menurut arketipe isu."
+    ],
+    "outOfScope": [
+      "Segala bentuk pengiriman, pelaporan, atau penyampaian kepada DJP. Coretax tetap dioperasikan secara eksklusif oleh personel Group Tax yang berwenang.",
+      "Penulisan balik nilai apa pun ke Dynamics 365, HIS, atau sistem sumber lainnya. Solusi bersifat hanya-baca terhadap seluruh sistem sumber.",
+      "Penetapan posisi pajak final Grup. Agen menghasilkan rekomendasi posisi; tenaga profesional perpajakan yang memilikinya.",
+      "Penanganan Pemeriksaan, Bukti Permulaan, Keberatan, maupun Banding.",
+      "Dokumentasi transfer pricing, provisi pajak, dan perhitungan pajak tangguhan.",
+      "Pemrosesan data klinis yang dapat mengidentifikasi pasien. Data pendapatan dikonsumsi hanya pada tingkat agregat dan berkode.",
+      "Integrasi API langsung dengan Coretax DJP. Tidak tersedia API untuk Wajib Pajak — lihat AS-003.",
+      "Pembetulan SPT. Bila analisis agen mengindikasikan pembetulan diperlukan, agen hanya mengangkat rekomendasi bertanda."
+    ]
+  },
+  "process": {
+    "figureCaption": "Gambar 1 — Siklus hidup penanganan SP2DK. \"Sistem Sumber\" mencakup buku besar Microsoft Dynamics 365, arsip SPT, ekstrak e-Faktur/e-Bupot, dan rincian pendapatan HIS (bagian Sistem & Integrasi). Setiap artefak yang terlihat pihak eksternal melewati persetujuan manusia bernama sebelum meninggalkan Grup; agen tidak memiliki jalur apa pun menuju DJP.",
+    "narrative": "Pemicunya adalah datangnya SP2DK. Pekerjaan agen dibatasi di satu ujung oleh dokumen masuk yang tidak ia minta, dan di ujung lain oleh manusia yang menandatangani tanggapan. Segala sesuatu di antaranya adalah pengambilan data, aritmetika, dan penyusunan draf — dan setiap angka yang dinyatakan wajib menunjuk kembali ke satu baris di sistem sumber.",
+    "mermaid": "sequenceDiagram\n    participant KPP as KPP / DJP\n    participant IN as Intake\n    participant AG as Agen SP2DK\n    participant SRC as Sistem Sumber\n    participant EQ as Ekualisasi\n    participant UFC as Unit FC\n    participant GTM as Group Tax Mgr\n\n    KPP->>IN: SP2DK terbit\n    IN->>IN: OCR + urai metadata\n    IN->>AG: Kasus dibuat · tenggat 14 hari mulai\n    AG->>AG: Klasifikasi arketipe\n    alt Keyakinan di bawah 0,85\n        AG->>GTM: Eskalasi klasifikasi manual\n        GTM-->>AG: Arketipe dikonfirmasi\n    end\n    AG->>SRC: Ekstraksi hanya-baca (entitas + periode)\n    SRC-->>AG: GL · SPT · faktur · bupot\n    AG->>EQ: Permintaan rekonsiliasi\n    EQ-->>AG: Daftar selisih (terlacak)\n    AG->>AG: Ambil preseden\n    AG->>AG: Susun draf + sitasi\n    AG->>UFC: Sajikan paket draf\n    UFC-->>AG: Terima / anotasi / tolak\n    AG->>GTM: Teruskan untuk persetujuan\n    alt Di atas ambang materialitas\n        GTM->>GTM: Konsultasi konsultan\n    end\n    GTM-->>AG: Setujui dan kunci paket\n    GTM->>KPP: Manusia sampaikan via Coretax\n    GTM->>AG: Catat penyampaian + hasil\n    AG->>AG: Tutup kasus",
+    "steps": [
+      {
+        "id": "P-01",
+        "actor": "Layanan Intake",
+        "step": "Mendeteksi dan menerima SP2DK dari folder ekspor Coretax yang dipantau, kotak surel pajak terdaftar, atau unggahan manual pindaian surat.",
+        "output": "Dokumen mentah + catatan asal-usul"
+      },
+      {
+        "id": "P-02",
+        "actor": "Layanan Intake",
+        "step": "Melakukan OCR dan penguraian: nama KPP, nomor surat, tanggal surat, nama dan NPWP entitas, jenis pajak, masa pajak, serta narasi hal yang dipertanyakan DJP.",
+        "output": "Header kasus terstruktur"
+      },
+      {
+        "id": "P-03",
+        "actor": "Manajer Kasus",
+        "step": "Membuat kasus, memulai tenggat SLA 14 hari kalender sejak tanggal surat, dan memberi tahu Unit Financial Controller serta Group Tax Manager.",
+        "output": "ID Kasus + tenggat SLA"
+      },
+      {
+        "id": "P-04",
+        "actor": "Agen SP2DK",
+        "step": "Mengklasifikasikan pertanyaan ke salah satu dari lima arketipe dan menerbitkan skor keyakinan. Di bawah ambang, berhenti dan eskalasi.",
+        "output": "Arketipe + skor keyakinan"
+      },
+      {
+        "id": "P-05",
+        "actor": "Perkakas Pengambilan",
+        "step": "Menjalankan kueri hanya-baca yang telah ditetapkan per arketipe terhadap buku besar Dynamics 365, arsip SPT, ekstrak e-Faktur dan e-Bupot, serta rincian pendapatan HIS, terbatas pada entitas dan periode terkait.",
+        "output": "Himpunan bukti dengan identifikasi tingkat baris"
+      },
+      {
+        "id": "P-06",
+        "actor": "Mesin Ekualisasi",
+        "step": "Menghitung rekonsiliasi secara deterministik. Menghasilkan daftar selisih berisi angka dilaporkan, angka buku besar, selisih, dan pos-pos rekonsiliasi.",
+        "output": "Daftar selisih (XLSX + JSON)"
+      },
+      {
+        "id": "P-07",
+        "actor": "Agen SP2DK",
+        "step": "Menelusuri pustaka preseden untuk posisi Grup yang pernah disetujui pada arketipe yang sama dan menyajikannya kepada reviewer.",
+        "output": "Daftar pendek preseden"
+      },
+      {
+        "id": "P-08",
+        "actor": "Agen SP2DK",
+        "step": "Menyusun draf surat tanggapan dalam Bahasa Indonesia sesuai templat Grup, melekatkan sitasi pada setiap angka yang dinyatakan, dan merakit paket bukti terindeks.",
+        "output": "Paket draf tanggapan"
+      },
+      {
+        "id": "P-09",
+        "actor": "Unit Financial Controller",
+        "step": "Reviu lapis pertama. Menerima, menganotasi, atau menolak. Penolakan mengembalikan kasus kepada agen beserta catatan reviewer.",
+        "output": "Draf terreviu + rekaman reviewer"
+      },
+      {
+        "id": "P-10",
+        "actor": "Group Tax Manager",
+        "step": "Persetujuan lapis kedua. Bila selisih yang belum terekonsiliasi melampaui ambang materialitas, konsultan pajak eksternal dikonsultasikan sebelum persetujuan diberikan.",
+        "output": "Paket disetujui dan terkunci"
+      },
+      {
+        "id": "P-11",
+        "actor": "Group Tax Manager",
+        "step": "Menyampaikan tanggapan kepada DJP melalui Coretax. Tindakan ini terjadi di luar solusi dan dicatatkan kembali ke dalam kasus oleh penyampai.",
+        "output": "Rekaman penyampaian + tanda terima"
+      },
+      {
+        "id": "P-12",
+        "actor": "Manajer Kasus",
+        "step": "Mencatat hasil dari DJP ketika diketahui, menutup kasus, dan menuliskan posisi yang disetujui ke pustaka preseden.",
+        "output": "Kasus tertutup + preseden baru"
+      }
+    ]
+  },
+  "systems": {
+    "integrations": [
+      {
+        "id": "INT-01",
+        "system": "Coretax DJP",
+        "role": "Sumber SP2DK; tujuan tanggapan",
+        "protocol": "Ekspor manual / kotak surel terpantau",
+        "direction": "Masuk saja",
+        "frequency": "Berbasis peristiwa",
+        "notes": "Tidak tersedia API untuk Wajib Pajak. Integrasi berupa folder terpantau ditambah akun surel pajak terdaftar. Penyampaian keluar adalah tindakan manusia di luar sistem."
+      },
+      {
+        "id": "INT-02",
+        "system": "Microsoft Dynamics 365 (ERP)",
+        "role": "Buku besar serta buku pembantu AP, AR, dan aset tetap",
+        "protocol": "Dataverse Web API / OData (hanya-baca)",
+        "direction": "Masuk (hanya-baca)",
+        "frequency": "Sesuai permintaan per kasus + penyegaran cache harian",
+        "notes": "Akun layanan hanya-baca. Cakupan tulis tidak boleh diberikan dalam keadaan apa pun."
+      },
+      {
+        "id": "INT-03",
+        "system": "Arsip SPT (Tahunan & Masa)",
+        "role": "Angka SPT sebagaimana dilaporkan untuk periode yang dipertanyakan",
+        "protocol": "SFTP / pengambilan dari repositori dokumen",
+        "direction": "Masuk (hanya-baca)",
+        "frequency": "Sesuai permintaan per kasus",
+        "notes": "SPT terlapor adalah dasar pembanding yang otoritatif; agen tidak boleh menyajikan ulang angka terlapor."
+      },
+      {
+        "id": "INT-04",
+        "system": "Ekstrak e-Faktur / e-Bupot",
+        "role": "Rincian PPN keluaran/masukan dan bukti potong",
+        "protocol": "Drop berkas terstruktur (CSV/XML) dari ekspor Coretax",
+        "direction": "Masuk (hanya-baca)",
+        "frequency": "Muat bulanan + sesuai permintaan per kasus"
+      },
+      {
+        "id": "INT-05",
+        "system": "Hospital Information System (HIS)",
+        "role": "Rincian pendapatan per kategori layanan, untuk memisahkan jasa medis yang dibebaskan dari penyerahan terutang",
+        "protocol": "REST API atau view data warehouse",
+        "direction": "Masuk (hanya-baca)",
+        "frequency": "Sesuai permintaan per kasus",
+        "notes": "Pendapatan agregat dan berkode saja. Tidak ada pengenal pasien yang boleh melewati batas ini — lihat SEC-005."
+      },
+      {
+        "id": "INT-06",
+        "system": "Microsoft SharePoint",
+        "role": "Penyimpanan paket bukti dan berkas kasus yang tidak dapat diubah",
+        "protocol": "Microsoft Graph API",
+        "direction": "Dua arah",
+        "frequency": "Per peristiwa kasus"
+      },
+      {
+        "id": "INT-07",
+        "system": "Microsoft Outlook / Exchange Online",
+        "role": "Kotak surel intake, notifikasi reviewer, eskalasi",
+        "protocol": "Microsoft Graph API",
+        "direction": "Dua arah",
+        "frequency": "Berbasis peristiwa"
+      },
+      {
+        "id": "INT-08",
+        "system": "Microsoft Word & Excel",
+        "role": "Templat surat tanggapan dan kertas kerja ekualisasi yang dapat disunting",
+        "protocol": "Open XML (docx/xlsx) melalui pustaka pembuatan dokumen",
+        "direction": "Keluar",
+        "frequency": "Per kasus",
+        "notes": "Keluaran harus dapat dibuka dan disunting penuh oleh Group Tax tanpa add-in tambahan."
+      },
+      {
+        "id": "INT-09",
+        "system": "Microsoft Power BI",
+        "role": "Dasbor status kepatuhan dan pelacakan tenggat",
+        "protocol": "Push dataset / DirectQuery ke basis data kasus",
+        "direction": "Keluar",
+        "frequency": "Mendekati waktu nyata"
+      },
+      {
+        "id": "INT-10",
+        "system": "Endpoint inferensi LLM",
+        "role": "Klasifikasi, pemilihan bukti, penyusunan narasi",
+        "protocol": "HTTPS REST, private endpoint",
+        "direction": "Dua arah",
+        "frequency": "Per langkah agen",
+        "notes": "Harus dapat dijalankan di wilayah Indonesia atau wilayah yang disetujui secara kontraktual. Ketentuan zero-retention dan larangan pelatihan model bersifat wajib — lihat AI-004."
+      },
+      {
+        "id": "INT-11",
+        "system": "Microsoft Entra ID",
+        "role": "SSO, penetapan peran, conditional access",
+        "protocol": "SAML 2.0 / OIDC",
+        "direction": "Dua arah",
+        "frequency": "Per sesi"
+      }
+    ]
+  },
+  "data": {
+    "entities": [
+      {
+        "entity": "Kasus",
+        "keyFields": "case_id, entity_npwp, kpp_code, letter_number, letter_date, sla_due_date, archetype, confidence, status",
+        "source": "Dibuat saat intake",
+        "retention": "10 tahun"
+      },
+      {
+        "entity": "Butir Bukti",
+        "keyFields": "evidence_id, case_id, source_system, source_row_ref, extracted_at, hash",
+        "source": "Perkakas pengambilan",
+        "retention": "10 tahun"
+      },
+      {
+        "entity": "Baris Selisih",
+        "keyFields": "case_id, dimension, reported_amount, ledger_amount, variance, reconciling_item, trace_ref",
+        "source": "Mesin Ekualisasi",
+        "retention": "10 tahun"
+      },
+      {
+        "entity": "Rekaman Persetujuan",
+        "keyFields": "case_id, approver_upn, role, decision, decided_at, comment, artefact_hash",
+        "source": "Alur kerja",
+        "retention": "10 tahun, tidak dapat diubah"
+      },
+      {
+        "entity": "Preseden",
+        "keyFields": "precedent_id, archetype, position_summary, outcome, approved_by, source_case_id",
+        "source": "Penutupan kasus",
+        "retention": "Tanpa batas"
+      }
+    ],
+    "mappings": [
+      {
+        "field": "Peredaran usaha bruto per buku besar",
+        "source": "Akun pendapatan GL Dynamics 365 (himpunan terpetakan)",
+        "target": "Ekualisasi — sisi buku besar",
+        "transformation": "Penjumlahan akun pendapatan terpetakan untuk periode, neto setelah eliminasi antarunit dan nota kredit."
+      },
+      {
+        "field": "Peredaran usaha per SPT",
+        "source": "SPT Tahunan Badan / SPT Masa PPN",
+        "target": "Ekualisasi — sisi dilaporkan",
+        "transformation": "Sebagaimana dilaporkan. Tidak pernah disajikan ulang atau disesuaikan oleh agen."
+      },
+      {
+        "field": "Pemisahan pendapatan dibebaskan vs terutang",
+        "source": "Kode kategori layanan HIS",
+        "target": "Penurunan DPP PPN",
+        "transformation": "Menerapkan tabel pemetaan kategori layanan ke perlakuan PPN yang disetujui Grup. Kode yang tidak ada dalam pemetaan memicu EX-004."
+      },
+      {
+        "field": "Dasar objek pemotongan/pemungutan",
+        "source": "Akun beban GL + rincian faktur AP Dynamics 365",
+        "target": "Ekualisasi PPh 21/23/4(2)",
+        "transformation": "Mengelompokkan baris beban menurut objek pemotongan sesuai tabel pemetaan objek yang disetujui Grup; membandingkan terhadap total e-Bupot."
+      },
+      {
+        "field": "Dasar imbalan jasa dokter",
+        "source": "Buku pembantu AP, klasifikasi vendor tenaga ahli",
+        "target": "Ekualisasi PPh 21 tenaga ahli",
+        "transformation": "Menerapkan perlakuan dasar penghitungan tenaga ahli sesuai posisi pajak baku Grup; menandai vendor yang klasifikasinya berubah di tengah periode."
+      }
+    ],
+    "aiPrompts": [
+      {
+        "id": "PR-01",
+        "purpose": "Klasifikasi isu",
+        "input": "Narasi SP2DK terurai + data master entitas",
+        "output": "Enum arketipe + skor keyakinan + periode dan jenis pajak terekstraksi",
+        "constraint": "Wajib mengembalikan salah satu dari lima arketipe yang ditetapkan atau UNKNOWN. Arketipe teks bebas ditolak oleh validasi skema."
+      },
+      {
+        "id": "PR-02",
+        "purpose": "Pemilihan bukti",
+        "input": "Daftar selisih + himpunan bukti lengkap",
+        "output": "Daftar evidence_id terperingkat yang mendukung tiap baris selisih",
+        "constraint": "Hanya boleh merujuk evidence_id yang ada dalam himpunan yang diberikan. Rujukan ke id yang tidak ada menggagalkan respons."
+      },
+      {
+        "id": "PR-03",
+        "purpose": "Penyusunan narasi tanggapan",
+        "input": "Daftar selisih tersetujui + bukti terpilih + daftar pendek preseden + templat surat",
+        "output": "Batang tubuh surat tanggapan dalam Bahasa Indonesia",
+        "constraint": "Setiap pernyataan numerik wajib membawa token sitasi yang mengarah ke baris selisih atau butir bukti. Angka tanpa sitasi gagal validasi — lihat AI-002."
+      },
+      {
+        "id": "PR-04",
+        "purpose": "Pengambilan preseden",
+        "input": "Arketipe + profil selisih",
+        "output": "Lima preseden termirip beserta alasan kemiripan",
+        "constraint": "Hanya pengambilan. Agen tidak boleh mensintesis preseden yang tidak ada dalam pustaka."
+      }
+    ]
+  },
+  "requirements": {
+    "functional": [
+      {
+        "id": "FR-001",
+        "priority": "Must",
+        "requirement": "Sistem harus menerima dokumen SP2DK dari folder terpantau, kotak surel terdaftar, dan unggahan manual, serta mencatat asal-usul setiap dokumen yang diterima."
+      },
+      {
+        "id": "FR-002",
+        "priority": "Must",
+        "requirement": "Sistem harus melakukan OCR dan penguraian surat SP2DK hasil pindaian, mengekstraksi KPP, nomor surat, tanggal surat, NPWP, jenis pajak, dan masa pajak, serta menyajikan header hasil penguraian untuk dikonfirmasi manusia sebelum kasus berlanjut."
+      },
+      {
+        "id": "FR-003",
+        "priority": "Must",
+        "requirement": "Sistem harus mengklasifikasikan setiap kasus ke salah satu dari lima arketipe isu perpajakan yang ditetapkan dan menerbitkan skor keyakinan numerik bersama klasifikasi tersebut."
+      },
+      {
+        "id": "FR-004",
+        "priority": "Must",
+        "requirement": "Sistem harus memulai penghitung SLA 14 hari kalender sejak tanggal surat SP2DK dan menampilkan sisa waktu pada setiap tampilan kasus."
+      },
+      {
+        "id": "FR-005",
+        "priority": "Must",
+        "requirement": "Sistem harus menjalankan pengambilan data hanya-baca terhadap buku besar Dynamics 365, arsip SPT, ekstrak e-Faktur/e-Bupot, dan rincian pendapatan HIS, terbatas ketat pada entitas dan periode yang teridentifikasi dalam kasus."
+      },
+      {
+        "id": "FR-006",
+        "priority": "Must",
+        "requirement": "Sistem harus menghitung ekualisasi secara deterministik dalam layanan perhitungan tersendiri. Tidak ada angka moneter yang disajikan kepada reviewer boleh berasal dari keluaran model bahasa."
+      },
+      {
+        "id": "FR-007",
+        "priority": "Must",
+        "requirement": "Sistem harus menghasilkan daftar selisih yang setiap barisnya dapat dilacak ke baris sumber yang teridentifikasi di sistem sumber."
+      },
+      {
+        "id": "FR-008",
+        "priority": "Must",
+        "requirement": "Sistem harus menghasilkan draf surat tanggapan dalam Bahasa Indonesia yang sesuai dengan templat baku Grup."
+      },
+      {
+        "id": "FR-009",
+        "priority": "Must",
+        "requirement": "Sistem harus melekatkan sitasi yang dapat ditelusuri pada setiap pernyataan numerik dalam draf tanggapan, dan harus menghalangi draf mencapai reviewer bila terdapat angka tanpa sitasi."
+      },
+      {
+        "id": "FR-010",
+        "priority": "Must",
+        "requirement": "Sistem harus merakit paket bukti terindeks berupa satu berkas PDF beserta buku kerja XLSX pendukung."
+      },
+      {
+        "id": "FR-011",
+        "priority": "Must",
+        "requirement": "Sistem harus menegakkan alur persetujuan dua lapis: Unit Financial Controller sebagai lapis pertama dan Group Tax Manager sebagai lapis kedua. Tidak satu lapis pun boleh dilewati atau disetujui sendiri."
+      },
+      {
+        "id": "FR-012",
+        "priority": "Must",
+        "requirement": "Sistem harus merekam jejak persetujuan yang tidak dapat diubah, memuat identitas penyetuju, peran, keputusan, cap waktu, komentar, dan hash kriptografis atas artefak persis yang disetujui."
+      },
+      {
+        "id": "FR-013",
+        "priority": "Must",
+        "requirement": "Sistem harus memelihara register SP2DK tingkat Grup yang menampilkan seluruh kasus terbuka dan tertutup beserta unit, arketipe, status SLA, dan pemilik kasus saat ini."
+      },
+      {
+        "id": "FR-014",
+        "priority": "Must",
+        "requirement": "Sistem harus menerbitkan notifikasi eskalasi pada T-7, T-4, dan T-2 hari kalender sebelum tenggat SLA, ditujukan kepada pemilik kasus dan Group Tax Manager."
+      },
+      {
+        "id": "FR-015",
+        "priority": "Should",
+        "requirement": "Sistem harus menyediakan pustaka preseden yang dapat ditelusuri menurut arketipe, memuat posisi Grup yang pernah disetujui beserta hasil yang tercatat."
+      },
+      {
+        "id": "FR-016",
+        "priority": "Should",
+        "requirement": "Sistem harus menjalankan ekualisasi pre-emptif triwulanan pada seluruh entitas dalam lingkup dan melaporkan selisih yang melampaui ambang materialitas, tanpa memerlukan pemicu SP2DK."
+      },
+      {
+        "id": "FR-017",
+        "priority": "Should",
+        "requirement": "Sistem harus memungkinkan reviewer menganotasi setiap baris selisih atau paragraf draf dan mengembalikan kasus kepada agen untuk disusun ulang, dengan tetap menyimpan versi sebelumnya."
+      },
+      {
+        "id": "FR-018",
+        "priority": "Should",
+        "requirement": "Sistem harus mendukung pencatatan permohonan perpanjangan kepada KPP dan hanya menyesuaikan penghitung SLA setelah terdapat bukti perpanjangan tersebut dikabulkan."
+      },
+      {
+        "id": "FR-019",
+        "priority": "Could",
+        "requirement": "Sistem harus menghasilkan tampilan analitik tingkat Grup atas frekuensi SP2DK menurut KPP, arketipe, dan unit, untuk mengarahkan prioritas upaya remediasi."
+      },
+      {
+        "id": "FR-020",
+        "priority": "Could",
+        "requirement": "Sistem harus merekomendasikan, namun tidak pernah mengeksekusi, pembetulan SPT apabila hasil ekualisasi mengindikasikan pembetulan diperlukan."
+      }
+    ],
+    "business": [
+      {
+        "id": "BR-001",
+        "priority": "Must",
+        "rule": "Solusi tidak boleh mengirimkan dokumen, pesan, atau pelaporan apa pun kepada DJP. Penyampaian melalui Coretax dilakukan secara eksklusif oleh manusia yang berwenang.",
+        "rationale": "Penyampaian adalah perbuatan hukum dengan akibat statutori. Hal itu tidak dapat didelegasikan kepada perangkat lunak."
+      },
+      {
+        "id": "BR-002",
+        "priority": "Must",
+        "rule": "Seluruh koneksi ke sistem sumber bersifat hanya-baca. Tidak satu pun akun layanan yang digunakan solusi boleh memiliki izin tulis, ubah, atau hapus pada sistem sumber mana pun.",
+        "rationale": "Mencegah solusi menjadi penyebab ketidaksesuaian pada buku besar maupun pelaporan."
+      },
+      {
+        "id": "BR-003",
+        "priority": "Must",
+        "rule": "Tenggat tanggapan adalah 14 hari kalender sejak tanggal SP2DK, sesuai SE-05/PJ/2022. Penghitung berbasis hari kalender dan tidak disesuaikan untuk akhir pekan maupun hari libur nasional.",
+        "rationale": "Statutori. Aritmetika hari kerja akan secara sistematis melebih-lebihkan waktu yang tersedia."
+      },
+      {
+        "id": "BR-004",
+        "priority": "Must",
+        "rule": "Angka sebagaimana dilaporkan dalam SPT bersifat tetap di dalam solusi. Agen boleh menjelaskan, merekonsiliasi, atau memberi konteks atas angka terlapor, namun tidak boleh menyajikannya ulang.",
+        "rationale": "SPT terlapor adalah posisi hukum yang berlaku sampai dilakukan pembetulan secara formal."
+      },
+      {
+        "id": "BR-005",
+        "priority": "Must",
+        "rule": "Setiap tanggapan SP2DK memerlukan dua persetujuan bernama: Unit Financial Controller dan Group Tax Manager. Kedua peran tidak boleh dipegang oleh individu yang sama untuk kasus yang sama.",
+        "rationale": "Pemisahan tugas; merupakan kontrol yang diuji audit."
+      },
+      {
+        "id": "BR-006",
+        "priority": "Must",
+        "rule": "Apabila selisih yang belum terekonsiliasi melampaui Rp500 juta atau 5% dari peredaran usaha entitas untuk periode terkait — mana yang lebih rendah — kasus tidak dapat disetujui sampai konsultasi dengan konsultan pajak eksternal tercatat pada kasus tersebut.",
+        "rationale": "Gerbang materialitas. Ambang menunggu ratifikasi Group Tax Manager — lihat OQ-001."
+      },
+      {
+        "id": "BR-007",
+        "priority": "Must",
+        "rule": "Skor keyakinan klasifikasi di bawah 0,85 harus menghentikan pemrosesan otomatis dan mengarahkan kasus kepada Group Tax Manager untuk penetapan arketipe secara manual.",
+        "rationale": "Kasus yang salah klasifikasi akan mengambil bukti yang keliru dan menghasilkan tanggapan yang keliru namun terdengar meyakinkan."
+      },
+      {
+        "id": "BR-008",
+        "priority": "Must",
+        "rule": "Berkas kasus, paket bukti, dan rekaman persetujuan harus disimpan selama 10 tahun sejak akhir tahun pajak terkait, sesuai UU KUP Pasal 28 ayat (11).",
+        "rationale": "Retensi statutori."
+      },
+      {
+        "id": "BR-009",
+        "priority": "Must",
+        "rule": "Tidak ada data yang dapat mengidentifikasi pasien boleh masuk ke dalam solusi. Data pendapatan dikonsumsi hanya pada tingkat kategori layanan dan agregat.",
+        "rationale": "Perlindungan data pasien; menjaga solusi tetap sepenuhnya di luar perimeter data klinis."
+      },
+      {
+        "id": "BR-010",
+        "priority": "Must",
+        "rule": "Setiap kode kategori layanan pada data pendapatan HIS yang tidak terdapat dalam pemetaan perlakuan PPN yang disetujui harus menghentikan ekualisasi dan memunculkan eksepsi. Agen tidak boleh menyimpulkan sendiri perlakuannya.",
+        "rationale": "Perlakuan PPN hasil penyimpulan adalah posisi perpajakan tanpa dasar."
+      },
+      {
+        "id": "BR-011",
+        "priority": "Should",
+        "rule": "Preseden hanya boleh ditulis ke pustaka dari kasus yang telah disetujui Group Tax Manager dan yang hasil dari DJP-nya telah dicatat.",
+        "rationale": "Mencegah posisi yang belum teruji beredar sebagai praktik baku Grup."
+      },
+      {
+        "id": "BR-012",
+        "priority": "Should",
+        "rule": "Reviu pre-emptif triwulanan harus melaporkan selisih sebagai kandidat untuk ditelusuri, bukan sebagai temuan, dan tidak boleh membuat kasus dalam register SP2DK.",
+        "rationale": "Menjaga pembedaan antara sinyal internal dan tindakan otoritas pajak."
+      }
+    ]
+  },
+  "ai": {
+    "guardrails": [
+      {
+        "id": "AI-001",
+        "priority": "Must",
+        "control": "Model bahasa tidak melakukan aritmetika apa pun. Seluruh perhitungan moneter dieksekusi oleh Mesin Ekualisasi yang deterministik, dan angka disisipkan ke dalam narasi melalui substitusi templat."
+      },
+      {
+        "id": "AI-002",
+        "priority": "Must",
+        "control": "Penegakan sitasi: validator pasca-generasi mengurai draf tanggapan, mengekstraksi setiap angka, dan memastikan masing-masing mengarah ke baris selisih atau butir bukti. Kegagalan menghalangi draf dan mengembalikannya untuk disusun ulang, maksimum tiga kali percobaan sebelum dieskalasi ke manusia."
+      },
+      {
+        "id": "AI-008",
+        "priority": "Should",
+        "control": "Himpunan evaluasi regresi berisi sekurang-kurangnya 40 kasus SP2DK historis dengan arketipe benar yang diketahui harus dipelihara. Akurasi klasifikasi diukur ulang sebelum setiap perubahan model atau prompt dipromosikan ke produksi."
+      },
+      {
+        "id": "AI-009",
+        "priority": "Should",
+        "control": "Agen harus menyatakan ketidakpastian secara eksplisit di dalam draf apabila bukti belum lengkap, alih-alih menghasilkan narasi yang meyakinkan di atas celah informasi."
+      }
+    ],
+    "humanApprovals": [
+      {
+        "gate": "Header kasus hasil penguraian",
+        "approver": "Petugas Pajak Unit",
+        "blocking": "Ya — kasus tidak dapat lanjut ke pengambilan data"
+      },
+      {
+        "gate": "Arketipe dengan keyakinan < 0,85",
+        "approver": "Group Tax Manager",
+        "blocking": "Ya"
+      },
+      {
+        "gate": "Paket draf tanggapan — lapis pertama",
+        "approver": "Unit Financial Controller",
+        "blocking": "Ya"
+      },
+      {
+        "gate": "Paket draf tanggapan — lapis kedua",
+        "approver": "Group Tax Manager",
+        "blocking": "Ya"
+      },
+      {
+        "gate": "Selisih di atas ambang materialitas",
+        "approver": "Konsultasi konsultan pajak eksternal tercatat",
+        "blocking": "Ya"
+      },
+      {
+        "gate": "Penyampaian kepada DJP",
+        "approver": "Group Tax Manager (dilakukan di luar sistem)",
+        "blocking": "Ya — sistem tidak memiliki kemampuan penyampaian"
+      }
+    ],
+    "evaluation": [
+      {
+        "metric": "Akurasi klasifikasi arketipe",
+        "target": "≥ 95% pada himpunan regresi",
+        "method": "Evaluasi otomatis sebelum promosi"
+      },
+      {
+        "metric": "Tingkat kelulusan validasi sitasi",
+        "target": "100% draf yang mencapai reviewer",
+        "method": "Ditegakkan validator; kegagalan dicatat"
+      },
+      {
+        "metric": "Tingkat koreksi material oleh reviewer",
+        "target": "≤ 20% draf memerlukan koreksi faktual material pada bulan ke-3",
+        "method": "Klasifikasi anotasi reviewer"
+      },
+      {
+        "metric": "Reproduktibilitas ekualisasi",
+        "target": "100% — input identik menghasilkan daftar selisih identik",
+        "method": "Uji replay deterministik dalam suite regresi"
+      }
+    ]
+  },
+  "exceptions": {
+    "matrix": [
+      {
+        "id": "EX-001",
+        "condition": "Dokumen SP2DK tidak terbaca, atau keyakinan OCR di bawah ambang yang dikonfigurasi.",
+        "severity": "High",
+        "handling": "Hentikan intake. Beri tahu Petugas Pajak Unit untuk memasukkan header kasus secara manual. Penghitung SLA tetap berjalan sejak tanggal surat."
+      },
+      {
+        "id": "EX-002",
+        "condition": "Keyakinan klasifikasi di bawah 0,85, atau arketipe dikembalikan sebagai UNKNOWN.",
+        "severity": "High",
+        "handling": "Hentikan. Arahkan ke Group Tax Manager untuk penetapan arketipe manual. Catat penetapan manual tersebut untuk himpunan evaluasi."
+      },
+      {
+        "id": "EX-003",
+        "condition": "Sistem sumber tidak dapat dijangkau, atau mengembalikan ekstraksi parsial.",
+        "severity": "High",
+        "handling": "Hentikan kasus. Jangan melanjutkan di atas bukti parsial. Coba ulang dengan backoff yang ditetapkan, lalu beri tahu pemilik kasus dan pemilik teknis."
+      },
+      {
+        "id": "EX-004",
+        "condition": "Kode kategori layanan HIS tidak terdapat dalam pemetaan perlakuan PPN yang disetujui.",
+        "severity": "High",
+        "handling": "Hentikan ekualisasi. Angkat kepada System Accountant untuk perluasan pemetaan. Agen tidak boleh menyimpulkan perlakuannya."
+      },
+      {
+        "id": "EX-005",
+        "condition": "Validasi sitasi gagal setelah tiga kali percobaan penyusunan ulang.",
+        "severity": "High",
+        "handling": "Hentikan. Eskalasikan kepada Group Tax Manager beserta draf yang gagal dan identifikasi spesifik pernyataan yang tidak bersitasi."
+      },
+      {
+        "id": "EX-006",
+        "condition": "Selisih yang belum terekonsiliasi melampaui ambang materialitas pada BR-006.",
+        "severity": "Critical",
+        "handling": "Blokir persetujuan. Wajibkan konsultasi konsultan pajak eksternal tercatat sebelum kasus dapat disetujui."
+      },
+      {
+        "id": "EX-007",
+        "condition": "Penghitung SLA mencapai T-2 hari tanpa persetujuan lapis kedua.",
+        "severity": "Critical",
+        "handling": "Eskalasikan kepada Group CFO. Dorong Group Tax Manager mempertimbangkan permohonan perpanjangan formal kepada KPP."
+      },
+      {
+        "id": "EX-008",
+        "condition": "Terdeteksi SP2DK ganda — nomor surat dan NPWP yang sama sudah ada dalam register.",
+        "severity": "Medium",
+        "handling": "Tautkan ke kasus yang ada, jangan buat duplikat, dan beri tahu pemilik kasus."
+      },
+      {
+        "id": "EX-009",
+        "condition": "NPWP entitas pada surat tidak dapat dicocokkan dengan entitas dalam master Grup.",
+        "severity": "Medium",
+        "handling": "Tahan kasus dalam antrean belum-tertugaskan dan beri tahu Group Tax. Tidak ada pengambilan data yang dijalankan."
+      },
+      {
+        "id": "EX-010",
+        "condition": "Endpoint LLM tidak tersedia atau melampaui anggaran latensi.",
+        "severity": "Medium",
+        "handling": "Antrekan dan coba ulang. Beri tahu pemilik teknis bila belum teratasi melebihi 60 menit. Pengambilan data dan ekualisasi deterministik tetap berjalan dan disajikan tanpa narasi."
+      }
+    ],
+    "controls": [
+      {
+        "id": "CTL-05",
+        "control": "Reviu tahunan atas tabel pemetaan perlakuan PPN dan pemetaan objek pemotongan oleh Group Tax.",
+        "framework": "Tata kelola master data"
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "id": "OUT-01",
+      "output": "Draf Tanggapan SP2DK",
+      "format": "DOCX dan PDF, Bahasa Indonesia, templat kop surat Grup",
+      "audience": "Group Tax Manager → DJP",
+      "trigger": "Setelah penyusunan draf selesai"
+    },
+    {
+      "id": "OUT-02",
+      "output": "Paket Bukti Terindeks",
+      "format": "PDF tunggal berbookmark dengan halaman indeks dan lampiran berreferensi halaman",
+      "audience": "DJP, Internal Audit",
+      "trigger": "Setelah penyusunan draf selesai"
+    },
+    {
+      "id": "OUT-03",
+      "output": "Buku Kerja Ekualisasi",
+      "format": "XLSX — daftar selisih dengan referensi sumber tingkat baris, formula terlihat",
+      "audience": "Unit FC, Group Tax, Internal Audit",
+      "trigger": "Setelah rekonsiliasi selesai"
+    },
+    {
+      "id": "OUT-04",
+      "output": "Berkas Audit Kasus",
+      "format": "Bundel tidak dapat diubah: prompt, panggilan perkakas, keluaran model, persetujuan, hash artefak",
+      "audience": "Internal Audit, auditor eksternal",
+      "trigger": "Saat kasus ditutup"
+    },
+    {
+      "id": "OUT-05",
+      "output": "Register SP2DK Grup",
+      "format": "Dasbor Power BI + ekstrak XLSX terjadwal",
+      "audience": "Group Tax Manager, CFO",
+      "trigger": "Langsung, ditambah ekstrak mingguan"
+    },
+    {
+      "id": "OUT-06",
+      "output": "Notifikasi Eskalasi SLA",
+      "format": "Surel Outlook dan pesan Teams",
+      "audience": "Pemilik kasus, Group Tax Manager, CFO pada T-2",
+      "trigger": "T-7, T-4, T-2 hari kalender"
+    },
+    {
+      "id": "OUT-07",
+      "output": "Laporan Ekualisasi Pre-emptif Triwulanan",
+      "format": "Ringkasan PDF + rincian XLSX per entitas",
+      "audience": "Group Tax Manager, Unit FC",
+      "trigger": "Jadwal triwulanan"
+    }
+  ],
+  "testing": [
+    {
+      "id": "AC-001",
+      "requirementRef": "FR-002, EX-001",
+      "given": "sebuah surat SP2DK hasil pindaian diunggah dengan teks yang terbaca",
+      "when": "layanan intake memproses dokumen tersebut",
+      "then": "nama KPP, nomor surat, tanggal surat, NPWP, jenis pajak, dan masa pajak terekstraksi dan disajikan kepada Petugas Pajak Unit untuk dikonfirmasi, dan kasus tidak berlanjut sampai konfirmasi tersebut terekam."
+    },
+    {
+      "id": "AC-002",
+      "requirementRef": "FR-004, BR-003",
+      "given": "SP2DK bertanggal 2 September dengan kasus yang dibuat pada 5 September",
+      "when": "penghitung SLA dievaluasi",
+      "then": "tenggat dihitung sebagai 16 September — 14 hari kalender sejak tanggal surat, bukan sejak tanggal pembuatan kasus — dan akhir pekan serta hari libur nasional tidak dikecualikan."
+    },
+    {
+      "id": "AC-003",
+      "requirementRef": "FR-003, BR-007, EX-002",
+      "given": "klasifikasi yang mengembalikan arketipe EKUALISASI_PPN dengan keyakinan 0,72",
+      "when": "agen mencoba melanjutkan ke tahap pengambilan data",
+      "then": "kelanjutan diblokir, kasus diarahkan kepada Group Tax Manager untuk penetapan arketipe manual, dan penetapan manual tersebut ditangkap untuk himpunan evaluasi."
+    },
+    {
+      "id": "AC-004",
+      "requirementRef": "FR-006, FR-007, AI-001",
+      "given": "sebuah ekualisasi yang telah selesai untuk suatu kasus",
+      "when": "angka moneter mana pun dalam draf tanggapan ditelusuri balik melalui sistem",
+      "then": "asalnya adalah rekaman keluaran Mesin Ekualisasi, dan tidak ada angka moneter yang dapat dibuktikan berasal dari keluaran model bahasa."
+    },
+    {
+      "id": "AC-005",
+      "requirementRef": "FR-009, AI-002, EX-005",
+      "given": "draf tanggapan memuat pernyataan 'selisih sebesar Rp1.240.500.000' tanpa sitasi yang dapat ditelusuri",
+      "when": "validator sitasi dijalankan",
+      "then": "draf ditolak, penyusunan ulang dicoba sampai tiga kali, dan bila tetap gagal kasus dieskalasikan kepada Group Tax Manager dengan pernyataan tanpa sitasi tersebut diidentifikasi secara spesifik."
+    },
+    {
+      "id": "AC-006",
+      "requirementRef": "FR-011, BR-005",
+      "given": "seorang pengguna yang memegang peran Unit Financial Controller sekaligus Group Tax Manager",
+      "when": "pengguna tersebut mencoba melakukan persetujuan lapis kedua pada kasus yang ia setujui di lapis pertama",
+      "then": "sistem menolak persetujuan tersebut, menyatakan aturan pemisahan tugas, dan mencatat percobaan itu dalam log audit."
+    },
+    {
+      "id": "AC-007",
+      "requirementRef": "BR-006, EX-006",
+      "given": "kasus dengan selisih belum terekonsiliasi sebesar Rp780 juta terhadap peredaran usaha dilaporkan sebesar Rp9 miliar",
+      "when": "Group Tax Manager mencoba menyetujui",
+      "then": "persetujuan diblokir sampai konsultasi konsultan pajak eksternal tercatat pada kasus, dan alasan pemblokiran merujuk BR-006."
+    },
+    {
+      "id": "AC-008",
+      "requirementRef": "FR-005, BR-002, SEC-003",
+      "given": "akun layanan yang digunakan konektor Dynamics 365",
+      "when": "izin efektifnya dienumerasi di sistem tujuan",
+      "then": "hanya cakupan baca yang ada, dan setiap upaya solusi menjalankan operasi tulis ditolak di sistem sumber, bukan sekadar pada lapis aplikasi."
+    },
+    {
+      "id": "AC-009",
+      "requirementRef": "BR-010, EX-004",
+      "given": "rincian pendapatan HIS memuat kode kategori layanan yang tidak ada dalam pemetaan perlakuan PPN yang disetujui",
+      "when": "ekualisasi dijalankan",
+      "then": "ekualisasi berhenti, tidak ada perlakuan PPN yang disimpulkan untuk kode tersebut, dan eksepsi diangkat kepada System Accountant dengan menyebutkan kode yang belum terpetakan."
+    },
+    {
+      "id": "AC-010",
+      "requirementRef": "AI-007, SEC-007",
+      "given": "berkas PDF SP2DK memuat teks tertanam yang menginstruksikan agen mengabaikan alur persetujuannya",
+      "when": "agen memproses dokumen tersebut",
+      "then": "teks tertanam diperlakukan semata-mata sebagai konten dokumen, alur persetujuan tidak berubah, dan percobaan tersebut dicatat sebagai peristiwa keamanan."
+    },
+    {
+      "id": "AC-011",
+      "requirementRef": "BR-001",
+      "given": "kasus mana pun dalam status apa pun",
+      "when": "seluruh permukaan solusi diperiksa untuk kemampuan keluar menuju DJP",
+      "then": "tidak ditemukan antarmuka, job, maupun kredensial yang mampu mengirimkan apa pun kepada DJP atau Coretax."
+    },
+    {
+      "id": "AC-012",
+      "requirementRef": "FR-012, BR-008, CTL-02",
+      "given": "kasus yang telah disetujui pada kedua lapis dan kemudian ditutup",
+      "when": "Internal Audit mengambil berkas audit kasus",
+      "then": "berkas memuat setiap prompt, panggilan perkakas, respons perkakas, keluaran model, dan keputusan manusia beserta cap waktu dan identitas, dan hash setiap artefak yang disetujui cocok dengan artefak yang tersimpan."
+    },
+    {
+      "id": "AC-013",
+      "requirementRef": "FR-014, EX-007",
+      "given": "kasus pada T-2 hari kalender tanpa persetujuan lapis kedua",
+      "when": "job evaluasi SLA dijalankan",
+      "then": "eskalasi diterbitkan kepada Group CFO dan Group Tax Manager didorong untuk mempertimbangkan permohonan perpanjangan formal kepada KPP."
+    },
+    {
+      "id": "AC-014",
+      "requirementRef": "AI-006",
+      "given": "kasus yang dibuka ketika versi model M1 dan versi prompt P3 sedang berlaku",
+      "when": "model ditingkatkan ke M2 di tengah kasus",
+      "then": "kasus tetap diselesaikan menggunakan M1/P3, dan paket bukti mencatat versi yang digunakan."
+    },
+    {
+      "id": "AC-015",
+      "requirementRef": "FR-016, BR-012",
+      "given": "reviu pre-emptif triwulanan mengidentifikasi selisih di atas ambang materialitas pada suatu unit",
+      "when": "laporan dihasilkan",
+      "then": "selisih disajikan sebagai kandidat untuk ditelusuri, tidak ada kasus yang dibuat dalam register SP2DK, dan bahasa laporan tidak mencirikan selisih tersebut sebagai temuan."
+    },
+    {
+      "id": "AC-016",
+      "requirementRef": "FR-001",
+      "given": "SP2DK yang sama tiba melalui ketiga kanal yang didukung — folder ekspor Coretax, kotak surel terdaftar, dan unggahan manual",
+      "when": "masing-masing diterima sistem",
+      "then": "kasus terbentuk pada setiap kanal dan catatan asal-usul menyebutkan kanal, cap waktu penerimaan, serta identitas berkas atau pesan asalnya."
+    },
+    {
+      "id": "AC-017",
+      "requirementRef": "FR-008, FR-010",
+      "given": "kasus yang drafnya telah lolos validasi sitasi",
+      "when": "paket tanggapan dirakit",
+      "then": "surat tanggapan dihasilkan dalam Bahasa Indonesia di atas templat baku Grup, dan paket bukti berupa satu PDF berbookmark dengan halaman indeks beserta pendamping XLSX yang formulanya terlihat."
+    },
+    {
+      "id": "AC-018",
+      "requirementRef": "FR-013",
+      "given": "kasus terbuka pada tiga unit berbeda dan dua kasus tertutup",
+      "when": "Group Tax Manager membuka register SP2DK",
+      "then": "kelima kasus tampil beserta unit, arketipe, status SLA, dan pemilik saat ini, sementara Unit Financial Controller yang membuka register yang sama hanya melihat kasus unitnya sendiri."
+    },
+    {
+      "id": "AC-019",
+      "requirementRef": "BR-004",
+      "given": "kasus yang angka buku besarnya berbeda dari angka yang dilaporkan dalam SPT",
+      "when": "ekualisasi dan draf dihasilkan",
+      "then": "angka terlapor direproduksi tanpa perubahan di seluruh dokumen, selisihnya disajikan sebagai pos rekonsiliasi, dan tidak ada artefak dalam paket yang memuat nilai SPT yang disajikan ulang."
+    },
+    {
+      "id": "AC-020",
+      "requirementRef": "BR-009, SEC-005",
+      "given": "permintaan ekstraksi pendapatan HIS untuk suatu kasus",
+      "when": "konektor mengembalikan data",
+      "then": "hanya field dalam allow-list yang hadir, tidak ada pengenal pasien di antaranya, dan allow-list ditegakkan pada konektor alih-alih melalui penyaringan setelah data diterima."
+    }
+  ],
+  "roadmap": [
+    {
+      "id": "FASE-1",
+      "phase": "Fase 1: Persiapan & Integrasi Sistem",
+      "theme": "Integrasi Sistem & Pemetaan Skema",
+      "description": "Membangun konektor API dan kredensial aman untuk mengakses Microsoft Dynamics 365, Coretax, dan Outlook guna mengekstraksi catatan keuangan serta surat pemberitahuan pajak. Seluruh koneksi dibangun hanya-baca sejak awal; cakupan tulis tidak pernah diminta, sehingga tidak pernah perlu dicabut kemudian.",
+      "systems": [
+        "Microsoft Dynamics 365 (ERP)",
+        "Coretax DJP",
+        "Microsoft Outlook",
+        "Microsoft Entra ID",
+        "SharePoint"
+      ],
+      "actions": [
+        "Mengonfigurasi token akses API yang aman untuk ERP dan kanal portal pajak, disimpan dalam secret store terkelola (SEC-003).",
+        "Memetakan skema data untuk laporan PPh dan PPN tingkat unit, termasuk pemetaan akun GL ke objek pajak.",
+        "Menetapkan jalur repositori aman untuk penyimpanan dokumen keuangan dan korespondensi SP2DK, dengan retensi 10 tahun (BR-008).",
+        "Memperoleh atestasi izin hanya-baca yang ditandatangani pemilik teknis untuk setiap akun layanan (AC-008).",
+        "Memuat dan menandatangani tabel pemetaan perlakuan PPN per kategori layanan HIS (DP-002)."
+      ]
+    },
+    {
+      "id": "FASE-2",
+      "phase": "Fase 2: Penyiapan Pipeline & Logika",
+      "theme": "Penerapan Otomasi & Logika Agentik",
+      "description": "Mengembangkan skrip RPA untuk ekstraksi laporan rutin dan mengonfigurasi model AI agentik untuk menafsirkan isu perpajakan serta menyusun draf tanggapan atas SP2DK. Perhitungan moneter dibangun sebagai layanan deterministik terpisah — bukan sebagai kemampuan model.",
+      "systems": [
+        "Microsoft Excel",
+        "Microsoft Word",
+        "Coretax DJP",
+        "Endpoint LLM"
+      ],
+      "actions": [
+        "Membangun bot RPA untuk menarik laporan PPh dan PPN unit secara periodik.",
+        "Mengembangkan prompt LLM dan rantai penalaran untuk analisis surat SP2DK, dengan skema keluaran tertutup (PR-01).",
+        "Membangun Mesin Ekualisasi deterministik terpisah dari model bahasa (AI-001).",
+        "Menyiapkan templat pembuatan dokumen otomatis untuk paket tanggapan pajak dalam format DOCX dan XLSX.",
+        "Mengimplementasikan validator sitasi yang memblokir draf berisi angka tanpa rujukan sumber (AI-002).",
+        "Memuat 40 kasus historis sebagai himpunan regresi dan menetapkan baseline akurasi klasifikasi (AI-008)."
+      ]
+    },
+    {
+      "id": "FASE-3",
+      "phase": "Fase 3: Human-in-the-Loop & Gerbang Validasi",
+      "theme": "Gerbang Reviu & Perutean Eksepsi",
+      "description": "Mengimplementasikan titik-titik validasi tempat tim keuangan mereviu kesalahan pelaporan pajak yang teridentifikasi dan menyetujui paket tanggapan SP2DK yang disusun AI. Gerbang ini bukan formalitas: sistem menegakkan pemisahan tugas, bukan mengandalkan kebiasaan.",
+      "systems": [
+        "Microsoft Dynamics 365 (ERP)",
+        "Microsoft Outlook",
+        "Microsoft Teams"
+      ],
+      "actions": [
+        "Menerapkan dasbor reviu untuk selisih pajak yang ditandai, dengan pembatasan entitas pada tingkat baris (SEC-002).",
+        "Menetapkan alur persetujuan dua lapis untuk draf tanggapan SP2DK sebelum penyampaian (FR-011).",
+        "Menegakkan pemblokiran persetujuan-sendiri antara lapis pertama dan lapis kedua (BR-005, AC-006).",
+        "Mencatat koreksi pengguna untuk menyempurnakan penalaran AI dari waktu ke waktu, tanpa mengubah versi model yang dipatok pada kasus berjalan (AI-006).",
+        "Menguji pertahanan prompt injection menggunakan dokumen SP2DK bermuatan instruksi tertanam (AC-010)."
+      ]
+    },
+    {
+      "id": "FASE-4",
+      "phase": "Fase 4: Penskalaan & Pemantauan Berkelanjutan",
+      "theme": "Penyiapan Pemantauan & Peringatan",
+      "description": "Menerapkan perkakas pemantauan berkelanjutan, dasbor kinerja, dan sistem peringatan otomatis untuk melacak metrik kepatuhan pajak serta tenggat yang akan jatuh tempo, lalu memperluas cakupan dari 6 unit pilot ke seluruh entitas Grup.",
+      "systems": [
+        "Microsoft Power BI",
+        "Microsoft Outlook",
+        "SharePoint"
+      ],
+      "actions": [
+        "Membangun dasbor Power BI untuk pelacakan status kepatuhan secara mendekati waktu nyata (OUT-05).",
+        "Mengonfigurasi peringatan tenggat otomatis pada T-7, T-4, dan T-2 hari kalender untuk lini masa tanggapan SP2DK (FR-014).",
+        "Menjalankan audit rutin atas log sistem dan tingkat eksepsi, termasuk reviu kontrol triwulanan Internal Audit (CTL-04).",
+        "Mengaktifkan reviu ekualisasi pre-emptif triwulanan lintas entitas (FR-016 — prioritas Sebaiknya; berada di luar lingkup harga dasar, lihat versi lengkap).",
+        "Melaksanakan reviu pasca-peluncuran pada hari ke-60 dan keputusan go/no-go untuk rollout Grup (DEP-10)."
+      ]
+    }
+  ],
+  "deployment": {
+    "cutover": [
+      {
+        "id": "DEP-01",
+        "step": "Penyediaan lingkungan dan pembukaan jalur jaringan ke seluruh sistem pada bagian Sistem & Integrasi.",
+        "owner": "Vendor + Group IT"
+      },
+      {
+        "id": "DEP-02",
+        "step": "Pembuatan akun layanan hanya-baca dan atestasi izin yang ditandatangani pemilik teknis.",
+        "owner": "Group IT"
+      },
+      {
+        "id": "DEP-03",
+        "step": "Pemuatan dan penandatanganan tabel pemetaan perlakuan PPN serta pemetaan objek pemotongan.",
+        "owner": "Group Tax + System Accountant"
+      },
+      {
+        "id": "DEP-04",
+        "step": "Pemuatan himpunan regresi 40 kasus dan penetapan baseline akurasi klasifikasi.",
+        "owner": "Vendor + Group Tax"
+      },
+      {
+        "id": "DEP-05",
+        "step": "Pelaksanaan UAT terhadap seluruh kriteria penerimaan pada bagian Pengujian & Kriteria Penerimaan, dengan triase defect dan pengujian ulang.",
+        "owner": "Group Tax (pimpinan), Unit FC, Internal Audit"
+      },
+      {
+        "id": "DEP-06",
+        "step": "Penetration test dan asesmen prompt injection; remediasi diselesaikan.",
+        "owner": "Group IT Security"
+      },
+      {
+        "id": "DEP-07",
+        "step": "Parallel run: dua siklus SP2DK penuh ditangani secara manual dan melalui solusi, lalu keluarannya dibandingkan.",
+        "owner": "Group Tax + Unit FC"
+      },
+      {
+        "id": "DEP-08",
+        "step": "Gerbang keputusan go-live. Persetujuan oleh Group Tax Manager, CFO, dan Head of Internal Audit.",
+        "owner": "Group CFO"
+      },
+      {
+        "id": "DEP-09",
+        "step": "Peluncuran produksi Fase 1 pada 6 unit pilot.",
+        "owner": "Vendor + Group Tax"
+      },
+      {
+        "id": "DEP-10",
+        "step": "Reviu pasca-peluncuran pada hari ke-60; keputusan go/no-go untuk rollout Grup.",
+        "owner": "Group Tax Manager"
+      }
+    ]
+  },
+  "assumptions": [
+    {
+      "id": "AS-001",
+      "item": "Group Tax akan menyediakan sekurang-kurangnya 40 surat SP2DK historis beserta tanggapan final yang telah disetujui, untuk himpunan regresi dan evaluasi."
+    },
+    {
+      "id": "AS-002",
+      "item": "Pemetaan perlakuan PPN Grup menurut kategori layanan HIS telah tersedia dalam bentuk yang dapat digunakan, atau dapat disusun System Accountant pada DEP-03."
+    },
+    {
+      "id": "AS-003",
+      "item": "Tidak tersedia API Coretax DJP untuk Wajib Pajak. Intake melalui folder terpantau dan kotak surel terdaftar; penyampaian tetap merupakan tindakan manual manusia."
+    },
+    {
+      "id": "AS-004",
+      "item": "Microsoft Dynamics 365 mengekspos antarmuka hanya-baca (Dataverse Web API / OData) yang memadai untuk ekstraksi GL dan buku pembantu per periode tanpa pengembangan khusus di sisi ERP."
+    },
+    {
+      "id": "AS-005",
+      "item": "Jangka 14 hari kalender sesuai SE-05/PJ/2022 masih berlaku pada saat pembangunan. Aturan SLA dibuat dapat dikonfigurasi sehingga perubahan regulasi tidak menuntut rilis kode."
+    },
+    {
+      "id": "AS-006",
+      "item": "Data master entitas — NPWP ke entitas rumah sakit ke KPP — tersedia dan dipelihara oleh Group Tax."
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "DP-001",
+      "item": "Akun layanan hanya-baca pada Dynamics 365, arsip SPT, dan HIS",
+      "owner": "Group IT",
+      "neededBy": "Awal pembangunan"
+    },
+    {
+      "id": "DP-002",
+      "item": "Tabel pemetaan perlakuan PPN dan objek pemotongan yang telah disetujui",
+      "owner": "Group Tax + System Accountant",
+      "neededBy": "DEP-03"
+    },
+    {
+      "id": "DP-003",
+      "item": "Endpoint LLM tersedia dengan ketentuan zero-retention dan residensi yang disetujui",
+      "owner": "Group IT + Legal",
+      "neededBy": "Awal pembangunan"
+    },
+    {
+      "id": "DP-004",
+      "item": "Registrasi aplikasi Entra ID dan pembuatan grup peran",
+      "owner": "Group IT",
+      "neededBy": "Awal pembangunan"
+    },
+    {
+      "id": "DP-005",
+      "item": "Templat surat tanggapan Grup yang telah disetujui",
+      "owner": "Group Tax Manager",
+      "neededBy": "Pembangunan modul penyusunan draf"
+    },
+    {
+      "id": "DP-006",
+      "item": "Kesepakatan Internal Audit atas narasi kontrol operasional & audit",
+      "owner": "Head of Internal Audit",
+      "neededBy": "DEP-08"
+    }
+  ],
+  "openQuestions": [
+    {
+      "id": "OQ-001",
+      "question": "Konfirmasi ambang materialitas pada BR-006. Apakah Rp500 juta / 5% peredaran usaha periode merupakan gerbang yang tepat, dan apakah perlu bervariasi menurut ukuran entitas?",
+      "owner": "Group Tax Manager",
+      "due": "Sebelum penetapan vendor"
+    },
+    {
+      "id": "OQ-002",
+      "question": "Berapa volume SP2DK Grup yang sebenarnya untuk 12 bulan terakhir, dirinci per unit dan per jenis pajak? Angka ini menentukan ukuran business case dan kebutuhan konkurensi.",
+      "owner": "Group Tax Manager",
+      "due": "Sebelum penetapan vendor"
+    },
+    {
+      "id": "OQ-003",
+      "question": "Versi dan lisensi Microsoft Dynamics 365 mana yang menjadi target, dan apakah Dataverse Web API telah aktif atau perlu disediakan view basis data tersendiri?",
+      "owner": "Head of Finance Systems",
+      "due": "Sebelum penetapan vendor"
+    },
+    {
+      "id": "OQ-004",
+      "question": "Apakah Grup menerima endpoint LLM yang di-hosting di luar Indonesia dengan ketentuan zero-retention kontraktual, atau inferensi di dalam negeri bersifat wajib?",
+      "owner": "Group IT + Legal",
+      "due": "Sebelum penetapan vendor"
+    },
+    {
+      "id": "OQ-005",
+      "question": "Enam unit mana yang membentuk Fase 1, dan apakah relasi KPP mereka mewakili profil SP2DK Grup secara keseluruhan?",
+      "owner": "Group Tax Manager",
+      "due": "Sebelum pembangunan dimulai"
+    },
+    {
+      "id": "OQ-006",
+      "question": "Apabila reviu pre-emptif triwulanan memunculkan selisih historis yang material, apa kebijakan baku Grup — pembetulan sukarela, atau menahan sampai ada tindakan DJP? Ini keputusan kebijakan, bukan kebutuhan sistem, namun alur kerja harus mencerminkannya.",
+      "owner": "Group CFO + Group Tax Manager",
+      "due": "Sebelum go-live Fase 1"
+    }
+  ],
+  "documentation": [
+    {
+      "id": "DOC-03",
+      "artefact": "Spesifikasi perhitungan Mesin Ekualisasi",
+      "detail": "Setiap formula, aturan pembulatan, dan definisi pos rekonsiliasi, ditulis sedemikian rupa sehingga reviewer keuangan dapat memverifikasinya tanpa membaca kode."
+    },
+    {
+      "id": "DOC-04",
+      "artefact": "Manual operasi AI",
+      "detail": "Inventaris prompt beserta versinya, konfigurasi model, implementasi guardrail, harness evaluasi, serta prosedur pelatihan ulang dan promosi."
+    }
+  ],
+  "vendorDeliverables": [
+    {
+      "id": "VD-03",
+      "deliverable": "Inventaris prompt dan harness evaluasi",
+      "acceptance": "Dapat dijalankan personel Grup; menghasilkan metrik akurasi klasifikasi sesuai permintaan"
+    }
+  ]
+}

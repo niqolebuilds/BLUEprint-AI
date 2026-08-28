@@ -13,3 +13,4 @@ coverage/
 *.tsbuildinfo
 server.js
 server.cjs
+vprs-pdf/out/

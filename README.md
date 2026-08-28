@@ -99,6 +99,62 @@ savings don't leak into hard-cash payback, payback lengthens as the
 parallel-run window grows, and the engine runs for multiple configured
 processes with zero code changes (config only).
 
+### VPRS PDF generator (Prepare for Production)
+
+Every process page's **AI Deployment Roadmap** card ends with **Generate VPRS
+Pack** once a roadmap exists. It turns the process and its roadmap into a
+print-ready **Vendor Production Requirement Specification** — the document
+that goes to procurement and the vendor — as a PDF, plus the Markdown and
+HTML it was built from.
+
+- `vprs-pdf/` — a vendored, self-contained package (its own `package.json`,
+  test suite, and README — see `vprs-pdf/README.md` for the full design
+  notes: the section registry, the Group-boilerplate defaults, the
+  full/brief profiles, mermaid rendering, and more). Unmodified except for
+  one small addition (`launchArgs` passthrough) needed for the Vercel path
+  below.
+- `api/_lib/vprsPdf.ts` — the actual integration: `buildVprsSpec()` maps a
+  catalogue `Process` + its generated `DeploymentPlan` into a spec (mapping
+  decisions and what's deliberately left for vendor confirmation, rather
+  than guessed, are commented inline), then `generateVprsPdfPack()` runs it
+  through the vendored pipeline. Reused by both entry points below.
+- `POST /api/vprs-pdf` — the Vercel serverless function (production) and the
+  matching Express route in `server.ts` (local dev), same pattern as
+  `api/blueprint.ts` / `/api/blueprint`.
+- `src/components/VprsPdfPanel.tsx` — the in-app UI (profile picker,
+  generate button with loading/error states, PDF/Markdown/HTML download,
+  inline HTML preview).
+
+**Chromium.** The PDF stage needs a real browser. Locally, `vprs-pdf/src/pdf.js`
+finds one on disk itself (e.g. under `PLAYWRIGHT_BROWSERS_PATH`) — nothing to
+configure. On Vercel there's no browser in the function image, so
+`api/_lib/vprsPdf.ts` resolves one via `@sparticuz/chromium` instead, only
+when `process.env.VERCEL` is set. **This pairing is version-pinned, not
+range-matched:** `playwright-core` and `@sparticuz/chromium` are both exact
+versions (not `^`) in `package.json`, hand-verified together (a full 26-page
+reference pack, including a mermaid diagram, rendered correctly). A `^`
+range on `playwright-core` would drift to expect a newer Chromium revision
+than whatever `@sparticuz/chromium` last shipped — bump both together and
+re-render the reference example before trusting a version bump here.
+`vercel.json` also raises this one function's `maxDuration` (60s) and
+`memory` (2048MB) — PDF rendering is slower and heavier than the app's other
+serverless calls.
+
+**Language.** The Group-boilerplate defaults in `vprs-pdf/src/defaults.js`
+(security roles, documentation checklist, support SLAs, vendor deliverables,
+AI guardrails) are only curated in Indonesian, so every generated pack is
+`meta.language: 'id'` regardless of the app's own language toggle — an
+English spec would render missing all of that. Adding an English defaults
+bundle is future work (see the `DEFAULTS` map in that file).
+
+Run `npm test` to execute `api/_lib/vprsPdf.test.ts` (vitest) — proves the
+mapper always produces schema-valid output (via the vendored AJV
+`validateSpec`), across solution types and with/without gaps, decision
+points and systems, and that it never fabricates integration technical
+detail it doesn't have. The vendored tool's own 32-assertion suite
+(schema/profile/locale/rendering behaviour, including a full PDF render) is
+separate — run it with `cd vprs-pdf && npm test`.
+
 ### Other scripts
 
 ```bash
