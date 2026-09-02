@@ -1,0 +1,9 @@
+{
+  "name": "Fin Blueprint Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:0-18",
+  "postCreateCommand": "npm install",
+  "forwardPorts": [3000],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "remoteUser": "vscode"
+}

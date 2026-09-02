@@ -1,0 +1,360 @@
+<script>
+  var SUBFUNCTIONS = [
+    'Procurement', 'Financial Planning and Corporate Analysis', 'System Accountant',
+    'Power BI Data Control', 'Financial Controller', 'Tax Management',
+    'Transactional Accounting', 'Management Reporting', 'Financial Analysis',
+    'Management Report', 'Account Receivable', 'Corporate Finance', 'Internal Audit',
+    'Investment', 'Revenue Assurance', 'OPEX Optimisation',
+    'CAPEX Control and Capital Investment', 'Profitablity and Productivity'
+  ];
+
+  var state = { token: null, user: null };
+
+  /* Surfaces real errors on the page itself — DevTools on an Apps Script
+     page is mostly Google's own minified sandbox/telemetry noise, so a
+     visible banner is far more reliable for diagnosing this app's bugs. */
+  function showFatalError(err) {
+    var msg = (err && err.message) ? err.message : String(err);
+    var stack = (err && err.stack) ? err.stack : '';
+    var el = document.getElementById('fatalBanner');
+    if (el) {
+      el.textContent = 'App error: ' + msg + (stack ? '\n' + stack : '');
+      el.classList.remove('hidden');
+    }
+  }
+
+  window.addEventListener('error', function (e) { showFatalError(e.error || e.message); });
+  window.addEventListener('unhandledrejection', function (e) { showFatalError(e.reason); });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    try {
+      document.getElementById('loginForm').addEventListener('submit', onLoginSubmit);
+      document.getElementById('logoutBtn').addEventListener('click', logout);
+
+      var saved = sessionStorage.getItem('bp_session');
+      if (saved) {
+        try {
+          var parsed = JSON.parse(saved);
+          state.token = parsed.token;
+          state.user = parsed.user;
+          showApp();
+          return;
+        } catch (e) { sessionStorage.removeItem('bp_session'); }
+      }
+      showLogin();
+    } catch (err) {
+      showFatalError(err);
+    }
+  });
+
+  function showLogin() {
+    document.getElementById('loginView').classList.remove('hidden');
+    document.getElementById('appView').classList.add('hidden');
+  }
+
+  function showApp() {
+    try {
+      document.getElementById('loginView').classList.add('hidden');
+      document.getElementById('appView').classList.remove('hidden');
+      document.getElementById('whoami').textContent = state.user.name + ' · ' + state.user.subFunction;
+      document.getElementById('roleBadge').textContent = state.user.level;
+      loadDashboard();
+    } catch (err) {
+      showFatalError(err);
+    }
+  }
+
+  function onLoginSubmit(evt) {
+    evt.preventDefault();
+    var username = document.getElementById('username').value.trim();
+    var password = document.getElementById('password').value;
+    var errorEl = document.getElementById('loginError');
+    errorEl.textContent = '';
+    var btn = document.getElementById('loginBtn');
+    btn.disabled = true;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.disabled = false;
+        state.token = res.token;
+        state.user = res.user;
+        sessionStorage.setItem('bp_session', JSON.stringify({ token: res.token, user: res.user }));
+        showApp();
+      })
+      .withFailureHandler(function (err) {
+        btn.disabled = false;
+        errorEl.textContent = err.message || 'Sign-in failed.';
+      })
+      .apiLogin(username, password);
+  }
+
+  function logout() {
+    sessionStorage.removeItem('bp_session');
+    state = { token: null, user: null };
+    document.getElementById('password').value = '';
+    showLogin();
+  }
+
+  function toast(message, isError) {
+    var el = document.createElement('div');
+    el.className = 'toast' + (isError ? ' error' : '');
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 4000);
+  }
+
+  function onServerError(err) {
+    showFatalError(err);
+    if (/session/i.test((err && err.message) || '')) logout();
+  }
+
+  function loadDashboard() {
+    google.script.run.withSuccessHandler(renderDashboard).withFailureHandler(onServerError).apiGetDashboard(state.token);
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function bar(label, value, max) {
+    var pct = max > 0 ? Math.round((value / max) * 100) : 0;
+    return '<div class="bar-row"><div class="label">' + esc(label) + '</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+      '<div class="pct">' + value + '</div></div>';
+  }
+
+  function statusPill(status) {
+    return '<span class="status-pill status-' + esc(status || 'Draft') + '">' + esc(status || 'Draft') + '</span>';
+  }
+
+  /* ---------------------------- Dashboard router ---------------------------- */
+
+  function renderDashboard(res) {
+    try {
+      var root = document.getElementById('dashboardRoot');
+      if (res.view === 'admin') root.innerHTML = renderAdmin(res.data);
+      else if (res.view === 'directorate') root.innerHTML = renderDirectorate(res.data);
+      else if (res.view === 'team') root.innerHTML = renderTeam(res.data);
+      else root.innerHTML = renderPersonal(res.data);
+      wireDashboardEvents(res.view);
+    } catch (err) {
+      showFatalError(err);
+    }
+  }
+
+  function renderDirectorate(d) {
+    var mix = d.classificationMix;
+    var mixMax = Math.max(mix.agentic, mix.automation, mix.human, 1);
+    return '' +
+      '<div class="grid">' +
+      kpi(d.totalProcesses, 'Total processes') +
+      kpi(d.totalActiveUsers, 'Active users') +
+      kpi(d.submissionRatePercent + '%', 'Submission rate') +
+      '</div>' +
+      '<div class="card"><h2>Classification mix (steps)</h2>' +
+      bar('Agentic AI', mix.agentic, mixMax) + bar('Automation', mix.automation, mixMax) + bar('Human-in-the-loop', mix.human, mixMax) +
+      '</div>' +
+      '<div class="card"><h2>Coverage by line of work</h2>' + table(
+        ['Sub-function', 'Processes', 'Avg completeness'],
+        d.subFunctionSummary.map(function (r) { return [esc(r.subFunction), r.count, r.avgCompleteness + '%']; })
+      ) + '</div>' +
+      '<div class="card"><h2>Champions</h2>' + table(
+        ['Name', 'Processes submitted'],
+        d.champions.map(function (r) { return [esc(r.name), r.processCount]; })
+      ) + '</div>' +
+      '<div class="card"><h2>Transformation plan — top automation candidates</h2>' + table(
+        ['Title', 'Owner', 'Sub-function', 'Suitability', 'Status'],
+        d.topCandidates.map(function (r) { return [esc(r.title), esc(r.owner), esc(r.subFunction), r.suitability + '%', statusPill(r.status)]; })
+      ) + '</div>';
+  }
+
+  function renderTeam(d) {
+    return '' +
+      '<div class="card"><h2>Team completion tracker — ' + esc(d.subFunction) + '</h2>' + table(
+        ['Name', 'Level', 'Processes', 'Avg completeness', 'Submitted?'],
+        d.completionTracker.map(function (r) { return [esc(r.name), esc(r.level), r.processCount, r.avgCompleteness + '%', r.hasSubmitted ? '✅' : '—']; })
+      ) + '</div>' +
+      '<div class="card"><h2>High-effort flags</h2>' + (d.highEffortFlags.length ? table(
+        ['Title', 'Owner', 'Effort', 'Volume', 'Status'],
+        d.highEffortFlags.map(function (r) { return [esc(r.title), esc(r.owner), r.effort, r.volume, statusPill(r.status)]; })
+      ) : '<p class="muted">No high-effort processes flagged.</p>') + '</div>' +
+      '<div class="card"><h2>Guidance tracker (completeness &lt; 50%)</h2>' + (d.guidanceTracker.length ? table(
+        ['Title', 'Owner', 'Completeness', 'Status'],
+        d.guidanceTracker.map(function (r) { return [esc(r.title), esc(r.owner), r.completeness + '%', statusPill(r.status)]; })
+      ) : '<p class="muted">Nothing needs guidance right now.</p>') + '</div>' +
+      captureCard();
+  }
+
+  function renderPersonal(d) {
+    return '' +
+      '<div class="grid">' +
+      kpi(d.summary.count, 'My processes') +
+      kpi(d.summary.avgCompleteness + '%', 'Avg completeness') +
+      '</div>' +
+      '<div class="card"><h2>My processes</h2>' + (d.processes.length ? table(
+        ['Title', 'Sub-function', 'Status', 'Completeness', 'Suitability'],
+        d.processes.map(function (r) { return [esc(r.title), esc(r.subFunction), statusPill(r.status), r.completeness + '%', r.suitability + '%']; })
+      ) : '<p class="muted">You haven\'t submitted a process yet — use the form below.</p>') + '</div>' +
+      captureCard();
+  }
+
+  function renderAdmin(d) {
+    var levelRows = Object.keys(d.userCounts).map(function (k) { return [k, d.userCounts[k]]; });
+    return '' +
+      '<div class="grid">' +
+      kpi(d.totalUsers, 'Total users') +
+      kpi(d.totalProcesses, 'Total processes') +
+      kpi(d.dataQuality.length, 'Records with data-quality gaps') +
+      '</div>' +
+      '<div class="card"><h2>Users by level</h2>' + table(['Level', 'Count'], levelRows) + '</div>' +
+      '<div class="card"><h2>Create a new user</h2>' + createUserForm() + '</div>' +
+      '<div class="card"><h2>User roster</h2>' + table(
+        ['Name', 'Username', 'Level', 'Sub-function', 'Active', 'Last login', 'Actions'],
+        d.users.map(function (u) {
+          return [
+            esc(u.name), esc(u.username), esc(u.level), esc(u.subFunction),
+            u.active ? '✅' : '⛔',
+            u.lastLogin ? new Date(u.lastLogin).toLocaleString() : '—',
+            '<button class="secondary reset-pw" data-username="' + esc(u.username) + '">Reset pw</button> ' +
+            '<button class="' + (u.active ? 'danger' : 'secondary') + ' toggle-active" data-username="' + esc(u.username) + '" data-active="' + (!u.active) + '">' + (u.active ? 'Deactivate' : 'Activate') + '</button>'
+          ];
+        })
+      ) + '</div>' +
+      '<div class="card"><h2>Next-stage readiness (Approved / total, by sub-function)</h2>' + table(
+        ['Sub-function', 'Total', 'Approved', 'Readiness'],
+        d.readiness.map(function (r) { return [esc(r.subFunction), r.total, r.approved, r.readinessPercent + '%']; })
+      ) + '</div>' +
+      '<div class="card"><h2>Data quality gaps</h2>' + (d.dataQuality.length ? table(
+        ['Title', 'Owner', 'Missing fields'],
+        d.dataQuality.map(function (r) { return [esc(r.title), esc(r.owner), esc(r.missing.join(', '))]; })
+      ) : '<p class="muted">No gaps found.</p>') + '</div>' +
+      '<div class="card"><h2>Dataset export</h2><button id="exportCsvBtn" class="secondary">Download Processes as CSV</button></div>';
+  }
+
+  function kpi(value, label) {
+    return '<div class="kpi"><div class="value">' + value + '</div><div class="label">' + esc(label) + '</div></div>';
+  }
+
+  function table(headers, rows) {
+    var head = '<tr>' + headers.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr>';
+    var body = rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>'; }).join('');
+    return '<table>' + head + body + '</table>';
+  }
+
+  function subFunctionOptions() {
+    return SUBFUNCTIONS.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join('');
+  }
+
+  function createUserForm() {
+    return '' +
+      '<form id="createUserForm" class="inline-form">' +
+      '<div><label>Full name</label><input name="name" required></div>' +
+      '<div><label>Work email</label><input name="email" type="email" required></div>' +
+      '<div><label>Level</label><select name="level">' +
+      ['L1', 'L2', 'L3', 'L4', 'Admin'].map(function (l) { return '<option value="' + l + '">' + l + '</option>'; }).join('') +
+      '</select></div>' +
+      '<div><label>Sub-function</label><select name="subFunction"><option value="All">All</option>' + subFunctionOptions() + '</select></div>' +
+      '<div class="actions"><button type="submit">Create user</button></div>' +
+      '</form>';
+  }
+
+  function captureCard() {
+    return '<div class="card"><h2>Capture a process</h2><form id="captureForm" class="inline-form">' +
+      '<div class="span-2"><label>Title</label><input name="title" required></div>' +
+      '<div><label>Sub-function</label><select name="subFunction" required>' + subFunctionOptions() + '</select></div>' +
+      '<div><label>Status</label><select name="status">' +
+      ['Draft', 'Submitted', 'Refined', 'Approved'].map(function (s) { return '<option value="' + s + '">' + s + '</option>'; }).join('') +
+      '</select></div>' +
+      '<div class="span-2"><label>Description</label><textarea name="description"></textarea></div>' +
+      '<div><label>Effort (1-5)</label><input name="effortRating" type="number" min="1" max="5" value="3"></div>' +
+      '<div><label>Repetitiveness (1-5)</label><input name="repetitivenessRating" type="number" min="1" max="5" value="3"></div>' +
+      '<div><label>Volume (1-5)</label><input name="volumeRating" type="number" min="1" max="5" value="3"></div>' +
+      '<div><label>Error sensitivity (1-5)</label><input name="errorSensitivityRating" type="number" min="1" max="5" value="3"></div>' +
+      '<div><label>Completeness score (0-100)</label><input name="completenessScore" type="number" min="0" max="100" value="50"></div>' +
+      '<div><label>Steps: agentic AI</label><input name="stepsAgenticCount" type="number" min="0" value="0"></div>' +
+      '<div><label>Steps: automation</label><input name="stepsAutomationCount" type="number" min="0" value="0"></div>' +
+      '<div><label>Steps: human-in-the-loop</label><input name="stepsHumanCount" type="number" min="0" value="0"></div>' +
+      '<div class="span-2"><label>Problem statement</label><textarea name="problemStatement"></textarea></div>' +
+      '<div class="span-2"><label>AI opportunity</label><textarea name="aiOpportunity"></textarea></div>' +
+      '<div class="actions"><button type="submit">Save process</button></div>' +
+      '</form></div>';
+  }
+
+  function formToObject(form) {
+    var obj = {};
+    new FormData(form).forEach(function (value, key) { obj[key] = value; });
+    return obj;
+  }
+
+  function wireDashboardEvents(view) {
+    var captureForm = document.getElementById('captureForm');
+    if (captureForm) {
+      captureForm.addEventListener('submit', function (evt) {
+        evt.preventDefault();
+        var payload = formToObject(captureForm);
+        google.script.run
+          .withSuccessHandler(function () { toast('Process saved.'); loadDashboard(); })
+          .withFailureHandler(onServerError)
+          .apiSubmitProcess(state.token, payload);
+      });
+    }
+
+    var createUserForm = document.getElementById('createUserForm');
+    if (createUserForm) {
+      createUserForm.addEventListener('submit', function (evt) {
+        evt.preventDefault();
+        var payload = formToObject(createUserForm);
+        google.script.run
+          .withSuccessHandler(function (res) {
+            toast('Created ' + res.username + ' — temp password: ' + res.tempPassword, false);
+            alert('New user created.\n\nUsername: ' + res.username + '\nTemporary password: ' + res.tempPassword + '\n\nShare this privately — it will not be shown again.');
+            createUserForm.reset();
+            loadDashboard();
+          })
+          .withFailureHandler(onServerError)
+          .apiAdminCreateUser(state.token, payload);
+      });
+    }
+
+    document.querySelectorAll('.reset-pw').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var username = btn.getAttribute('data-username');
+        if (!confirm('Reset password for ' + username + '?')) return;
+        google.script.run
+          .withSuccessHandler(function (res) { alert('New temporary password for ' + username + ': ' + res.tempPassword); })
+          .withFailureHandler(onServerError)
+          .apiAdminResetPassword(state.token, username);
+      });
+    });
+
+    document.querySelectorAll('.toggle-active').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var username = btn.getAttribute('data-username');
+        var makeActive = btn.getAttribute('data-active') === 'true';
+        google.script.run
+          .withSuccessHandler(function () { toast('Updated ' + username + '.'); loadDashboard(); })
+          .withFailureHandler(onServerError)
+          .apiAdminSetActive(state.token, username, makeActive);
+      });
+    });
+
+    var exportBtn = document.getElementById('exportCsvBtn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', function () {
+        google.script.run
+          .withSuccessHandler(function (csv) {
+            var blob = new Blob([csv], { type: 'text/csv' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'blueprint-processes.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+          })
+          .withFailureHandler(onServerError)
+          .apiAdminExportCsv(state.token);
+      });
+    }
+  }
+</script>
