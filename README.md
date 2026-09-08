@@ -69,11 +69,32 @@ It replaced an earlier naive model that compared an RPA license price
 directly against a raw Gemini token cost. Token/API cost is one line item —
 this engine computes a full **Total Cost of Ownership** (inference + human
 review labor + maintenance + infra + compliance + amortized integration
-build cost), separates **hard cash benefit** from **soft capacity value**
-(hours freed only count once scaled by a redeployment factor), subtracts
-error-rework cost, and computes payback on cumulative cash flow through a
-realistic adoption ramp (pilot → parallel-run → steady state) instead of an
-instant break-even. See:
+build cost), subtracts error-rework cost, and computes payback on cumulative
+cash flow through a realistic adoption ramp (pilot → parallel-run → steady
+state) instead of an instant break-even.
+
+**Fixed:** entering "Old process cost" used to barely move the numbers — it
+was only ever charged as a temporary double-running cost during the
+parallel-run window and never converted into a benefit once the old process
+was actually decommissioned, so the single most important input in the panel
+looked like it did nothing. It now shows up as "Old process cost avoided"
+once the parallel run ends, scaled by adoption realization — see the comment
+on `monthlyBenefit()` in `roiTcoEngine.ts` for the full explanation, and the
+"a higher old-process cost strictly improves benefit..." tests in
+`roiTcoEngine.test.ts` for the regression coverage.
+
+**Also split out of the main payback/NPV number**, each into its own
+section of the panel:
+- **Cost to build & maintain** — a simple, un-ramped, un-discounted answer to
+  "what does this cost to build once, and to run every month/year" (see
+  `computeBuildAndRunCost()`), separate from whether the project pays back.
+- **Man-hours saved** — hours freed per month/year, reported on its own
+  (see `computeManHoursSaved()`). The redeployed-value-in-IDR figure is shown
+  for reference but is explicitly informational and does **not** feed
+  payback/NPV — soft capacity was previously blended into "Total benefit"
+  despite the code comments already saying it shouldn't be.
+
+See:
 
 - `src/lib/roiTcoEngine.ts` — the calculation engine (pure TypeScript, no
   UI/React dependency; every function is commented with the reasoning behind
@@ -95,7 +116,10 @@ instant break-even. See:
 
 Run `npm test` to execute the engine's test suite (`src/lib/roiTcoEngine.test.ts`,
 via vitest), which asserts: token cost is never treated as TCO, soft capacity
-savings don't leak into hard-cash payback, payback lengthens as the
+savings don't leak into hard-cash payback, a higher old-process cost strictly
+improves benefit once decommissioned (the regression test for the fix above),
+man-hours saved and build/run cost are reported independently of the
+cash-driven benefit, payback lengthens as the
 parallel-run window grows, and the engine runs for multiple configured
 processes with zero code changes (config only).
 

@@ -174,5 +174,9 @@ export function formatIDRCompact(val: number): string {
   const abs = Math.abs(val);
   if (abs >= 1_000_000_000) return `${sign}Rp ${(abs / 1_000_000_000).toFixed(2)} Miliar`;
   if (abs >= 1_000_000) return `${sign}Rp ${(abs / 1_000_000).toFixed(1)} Juta`;
+  // Below 1 Juta still gets a "Ribu" tier so small figures (e.g. per-doc
+  // inference cost) don't suddenly switch to a raw, un-abbreviated number
+  // next to otherwise-compact Miliar/Juta figures in the same table.
+  if (abs >= 1_000) return `${sign}Rp ${(abs / 1_000).toFixed(1)} Ribu`;
   return `${sign}Rp ${Math.round(abs).toLocaleString('id-ID')}`;
 }

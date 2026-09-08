@@ -132,3 +132,94 @@ test('scenarios are ordered downside <= base <= upside on net benefit', () => {
   assert.ok(result.scenarios.downside.totalBenefitIDR - result.scenarios.downside.totalCostIDR <= result.scenarios.base.totalBenefitIDR - result.scenarios.base.totalCostIDR + 1);
   assert.ok(result.scenarios.base.totalBenefitIDR - result.scenarios.base.totalCostIDR <= result.scenarios.upside.totalBenefitIDR - result.scenarios.upside.totalCostIDR + 1);
 });
+
+// --- Regression coverage for the reported bug: "the calculator isn't
+// responding when a number is typed in." Root cause: oldProcessMonthlyCostIDR
+// was only ever charged as a temporary parallel-run cost and never converted
+// into an avoided-cost benefit once the old process was decommissioned, so
+// raising it barely moved payback/NPV and never moved "Total benefit" at all.
+
+test('a higher old-process cost strictly improves benefit once the parallel run ends (the reported bug)', () => {
+  const cheap = apInvoiceConfig({ }); // oldProcessMonthlyCostIDR = 45,000,000 by default in apInvoiceConfig
+  const expensive = { ...cheap, oldProcessMonthlyCostIDR: 200_000_000 };
+
+  const cheapResult = runOptionForTest(cheap);
+  const expensiveResult = runOptionForTest(expensive);
+
+  const afterParallelRun = cheap.ramp.parallelRunMonths + 1;
+  const cheapMonth = cheapResult.monthly[afterParallelRun - 1];
+  const expensiveMonth = expensiveResult.monthly[afterParallelRun - 1];
+
+  assert.ok(
+    expensiveMonth.benefit.avoidedOldProcessCostIDR > cheapMonth.benefit.avoidedOldProcessCostIDR,
+    'a bigger old-process cost must show up as a bigger avoided-cost benefit after decommissioning'
+  );
+  assert.ok(
+    expensiveMonth.benefit.totalIDR > cheapMonth.benefit.totalIDR,
+    'the higher old-process cost must actually move "Total benefit/mo", not just NPV'
+  );
+  assert.ok(expensiveResult.npvIDR > cheapResult.npvIDR, 'NPV must improve, not worsen, when the avoided cost is bigger');
+});
+
+test('during the parallel run, old-process cost is charged but not yet counted as avoided (both apply at once)', () => {
+  const cfg = apInvoiceConfig();
+  const result = runOptionForTest(cfg);
+  const duringParallelRun = result.monthly[0]; // month 1 <= parallelRunMonths (3 by default)
+
+  assert.equal(duringParallelRun.benefit.avoidedOldProcessCostIDR, 0, 'nothing is avoided yet while still running in parallel');
+  assert.ok(duringParallelRun.oldProcessCostIDR > 0, 'the old process is still being paid for during the parallel run');
+});
+
+function runOptionForTest(cfg: RoiEngineConfig) {
+  return runRoiTcoEngine(cfg).scenarios.base;
+}
+
+test('man-hours saved is reported as its own figure, decoupled from the cash-driven benefit total', () => {
+  const withHours = apInvoiceConfig({
+    benefit: {
+      hardCashSavingsMonthlyIDR: 0,
+      addressableLeakageMonthlyIDR: 0,
+      softCapacityHoursPerMonth: 300,
+      redeploymentFactor: 0.4,
+    },
+  });
+  const withoutHours = apInvoiceConfig({
+    benefit: {
+      hardCashSavingsMonthlyIDR: 0,
+      addressableLeakageMonthlyIDR: 0,
+      softCapacityHoursPerMonth: 0,
+      redeploymentFactor: 0.4,
+    },
+  });
+
+  const a = runRoiTcoEngine(withHours);
+  const b = runRoiTcoEngine(withoutHours);
+
+  assert.equal(a.manHoursSaved.hoursPerMonth, 300);
+  assert.equal(a.manHoursSaved.hoursPerYear, 3600);
+  assert.ok(a.manHoursSaved.redeployedValueMonthlyIDR > 0);
+
+  // The whole point: 300 freed hours must NOT change the cash-driven payback total.
+  assert.equal(
+    a.scenarios.base.avgMonthlyBenefit.totalIDR,
+    b.scenarios.base.avgMonthlyBenefit.totalIDR,
+    'man-hours saved must not leak into the cash-driven benefit total'
+  );
+});
+
+test('cost to build & maintain is a simple, un-ramped, un-discounted figure', () => {
+  const cfg = apInvoiceConfig();
+  const result = runRoiTcoEngine(cfg);
+
+  assert.equal(result.buildAndRunCost.oneTimeBuildCostIDR, cfg.ops.buildCostIDR);
+  assert.ok(result.buildAndRunCost.monthlyRunCost.totalIDR > 0, 'steady-state run cost must be positive');
+  assert.equal(
+    Math.round(result.buildAndRunCost.annualRunCostIDR),
+    Math.round(result.buildAndRunCost.monthlyRunCost.totalIDR * 12),
+    'annual run cost must be exactly 12x the monthly run cost — no ramp/discounting involved'
+  );
+  // Doubling docs/month should raise the run cost (inference + labor scale with volume).
+  const doubledVolume = { ...cfg, volume: { ...cfg.volume, docsPerMonth: cfg.volume.docsPerMonth * 2 } };
+  const doubledResult = runRoiTcoEngine(doubledVolume);
+  assert.ok(doubledResult.buildAndRunCost.monthlyRunCost.totalIDR > result.buildAndRunCost.monthlyRunCost.totalIDR);
+});

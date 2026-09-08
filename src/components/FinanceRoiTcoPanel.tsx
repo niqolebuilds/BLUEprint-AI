@@ -11,6 +11,8 @@ import {
   Combine,
   HelpCircle,
   AlertTriangle,
+  Wrench,
+  Clock,
 } from 'lucide-react';
 import {
   Area,
@@ -211,10 +213,13 @@ function ScenarioCard({ name, summary, horizonMonths }: { name: ScenarioName; su
         </div>
       </div>
       <div className="pt-2.5 border-t border-line/60 space-y-1 text-[10px]">
-        <div className="text-[9px] uppercase tracking-wider text-mute font-bold mb-1">Avg monthly benefit</div>
+        <div className="text-[9px] uppercase tracking-wider text-mute font-bold mb-1 flex items-center gap-1">
+          Avg monthly benefit (cash-driven)
+          <InfoDot title="Man-hours saved (soft capacity) is reported in its own card below, not blended in here — see Man-hours saved." />
+        </div>
         {[
           ['Hard cash savings', summary.avgMonthlyBenefit.hardCashSavingsIDR],
-          ['Soft capacity (redeployed)', summary.avgMonthlyBenefit.softCapacityValueIDR],
+          ['Old process cost avoided', summary.avgMonthlyBenefit.avoidedOldProcessCostIDR],
           ['Leakage captured', summary.avgMonthlyBenefit.leakageCaptureIDR],
           ['− Error rework cost', -summary.avgMonthlyBenefit.errorReworkCostIDR],
         ].map(([label, val]) => (
@@ -397,6 +402,16 @@ export default function FinanceRoiTcoPanel({
     rows.push(['RPA-only', 'Payback (months)', String(result.rpaOnly.paybackMonth ?? `>${horizonMonths}`), 'NPV (IDR)', String(Math.round(result.rpaOnly.npvIDR)), '', '', '']);
     rows.push(['AI + Orchestration Hybrid', 'Payback (months)', String(result.hybrid.paybackMonth ?? `>${horizonMonths}`), 'NPV (IDR)', String(Math.round(result.hybrid.npvIDR)), '', '', '']);
     rows.push(['Sensitivity', result.sensitivity.summary, '', '', '', '', '', '']);
+    rows.push([]);
+    rows.push(['Cost to build & maintain', '', '', '', '', '', '', '']);
+    rows.push(['Build (one-time, IDR)', String(Math.round(result.buildAndRunCost.oneTimeBuildCostIDR)), '', '', '', '', '', '']);
+    rows.push(['Run cost / month (IDR)', String(Math.round(result.buildAndRunCost.monthlyRunCost.totalIDR)), '', '', '', '', '', '']);
+    rows.push(['Run cost / year (IDR)', String(Math.round(result.buildAndRunCost.annualRunCostIDR)), '', '', '', '', '', '']);
+    rows.push([]);
+    rows.push(['Man-hours saved', '', '', '', '', '', '', '']);
+    rows.push(['Hours freed / month', String(Math.round(result.manHoursSaved.hoursPerMonth)), '', '', '', '', '', '']);
+    rows.push(['Hours freed / year', String(Math.round(result.manHoursSaved.hoursPerYear)), '', '', '', '', '', '']);
+    rows.push(['Redeployed value / month (IDR, informational)', String(Math.round(result.manHoursSaved.redeployedValueMonthlyIDR)), '', '', '', '', '', '']);
     downloadCsv(rows, headers, `roi_tco_results_${proc.id}.csv`);
   };
 
@@ -489,9 +504,53 @@ export default function FinanceRoiTcoPanel({
         />
         {oldProcessMonthlyCostIDR === 0 && (
           <div className="flex items-center gap-2 text-[11px] text-warn bg-warn/10 border border-warn/30 rounded-xl px-3 py-2">
-            <AlertTriangle size={12} className="shrink-0" /> Enter the old process's monthly cost — payback and the parallel-run comparison are meaningless at zero.
+            <AlertTriangle size={12} className="shrink-0" /> Enter the old process's monthly cost — once it's decommissioned (after the parallel-run window), that cost turns into your savings.
           </div>
         )}
+      </div>
+
+      {/* Cost to build & maintain — the simple, standalone answer: what does
+          this cost to build once, and what does it cost to run every month
+          once it's live. Deliberately separate from payback/NPV below, which
+          answer a different question ("is this worth it") and depend on a
+          lot more assumptions. */}
+      <div className="bg-white border border-line rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-1.5">
+          <Wrench size={13} className="text-citron-deep" />
+          <h4 className="font-display font-semibold text-xs text-ink uppercase tracking-wider">Cost to build &amp; maintain</h4>
+          <InfoDot title="Standalone figures, not netted against any benefit — one-time build cost, then the steady-state monthly/annual cost to keep it running at full volume." />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-canvas-soft border border-line/60 rounded-xl p-3">
+            <div className="text-[9px] uppercase tracking-wider text-mute font-bold">Build (one-time)</div>
+            <div className="text-base font-bold text-ink mt-0.5">{formatIDRCompact(result.buildAndRunCost.oneTimeBuildCostIDR)}</div>
+            <div className="text-[10px] text-faint mt-0.5">ERP/source-system integration effort</div>
+          </div>
+          <div className="bg-canvas-soft border border-line/60 rounded-xl p-3">
+            <div className="text-[9px] uppercase tracking-wider text-mute font-bold">Run cost / month</div>
+            <div className="text-base font-bold text-ink mt-0.5">{formatIDRCompact(result.buildAndRunCost.monthlyRunCost.totalIDR)}</div>
+            <div className="text-[10px] text-faint mt-0.5">inference + labor + maintenance + infra + compliance</div>
+          </div>
+          <div className="bg-canvas-soft border border-line/60 rounded-xl p-3">
+            <div className="text-[9px] uppercase tracking-wider text-mute font-bold">Run cost / year</div>
+            <div className="text-base font-bold text-ink mt-0.5">{formatIDRCompact(result.buildAndRunCost.annualRunCostIDR)}</div>
+            <div className="text-[10px] text-faint mt-0.5">monthly run cost × 12</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1 text-[10px]">
+          {[
+            ['Inference', result.buildAndRunCost.monthlyRunCost.inferenceCostIDR],
+            ['Labor', result.buildAndRunCost.monthlyRunCost.laborCostIDR],
+            ['Maintenance', result.buildAndRunCost.monthlyRunCost.maintenanceCostIDR],
+            ['Infra', result.buildAndRunCost.monthlyRunCost.infraCostIDR],
+            ['Compliance', result.buildAndRunCost.monthlyRunCost.complianceCostIDR],
+          ].map(([label, val]) => (
+            <div key={label as string} className="flex items-center justify-between border-t border-line/60 pt-1.5">
+              <span className="text-mute">{label as string}</span>
+              <span className="font-mono text-inksoft">{formatIDRCompact(val as number)}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Assumption accordions */}
@@ -575,6 +634,40 @@ export default function FinanceRoiTcoPanel({
           {(['downside', 'base', 'upside'] as ScenarioName[]).map((name) => (
             <ScenarioCard key={name} name={name} summary={result.scenarios[name]} horizonMonths={horizonMonths} />
           ))}
+        </div>
+      </div>
+
+      {/* Man-hours saved — its own calculation, not blended into the cash
+          benefit above. Hours freed are an operational fact regardless of
+          whether the org actually redeploys that time into something
+          value-generating; the redeployed IDR figure is shown too, but
+          clearly labeled as informational, separate from payback/NPV. */}
+      <div className="bg-white border border-line rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-1.5">
+          <Clock size={13} className="text-citron-deep" />
+          <h4 className="font-display font-semibold text-xs text-ink uppercase tracking-wider">Man-hours saved</h4>
+          <InfoDot title="Kept separate from the cash benefit above — hours freed are a fact regardless of whether they're redeployed into paid output." />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-canvas-soft border border-line/60 rounded-xl p-3">
+            <div className="text-[9px] uppercase tracking-wider text-mute font-bold">Hours freed / month</div>
+            <div className="text-base font-bold text-ink mt-0.5">{Math.round(result.manHoursSaved.hoursPerMonth).toLocaleString('id-ID')} hrs</div>
+          </div>
+          <div className="bg-canvas-soft border border-line/60 rounded-xl p-3">
+            <div className="text-[9px] uppercase tracking-wider text-mute font-bold">Hours freed / year</div>
+            <div className="text-base font-bold text-ink mt-0.5">{Math.round(result.manHoursSaved.hoursPerYear).toLocaleString('id-ID')} hrs</div>
+          </div>
+          <div className="bg-canvas-soft border border-line/60 rounded-xl p-3">
+            <div className="text-[9px] uppercase tracking-wider text-mute font-bold flex items-center gap-1">
+              Redeployed value / mo
+              <InfoDot title="Informational only — hoursPerMonth × redeployment factor × hourly value. NOT counted in payback/NPV above." />
+            </div>
+            <div className="text-base font-bold text-inksoft mt-0.5">{formatIDRCompact(result.manHoursSaved.redeployedValueMonthlyIDR)}</div>
+          </div>
+          <div className="bg-canvas-soft border border-line/60 rounded-xl p-3">
+            <div className="text-[9px] uppercase tracking-wider text-mute font-bold">Redeployment factor</div>
+            <div className="text-base font-bold text-inksoft mt-0.5">{Math.round(result.manHoursSaved.redeploymentFactor * 100)}%</div>
+          </div>
         </div>
       </div>
 
