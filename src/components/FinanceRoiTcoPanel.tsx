@@ -28,7 +28,8 @@ import {
 import { Process } from '../types';
 import { formatIDR, formatIDRCompact } from '../lib/utils';
 import {
-  FINANCE_PROCESS_TEMPLATES,
+  ALL_FINANCE_TEMPLATES,
+  CUSTOM_TEMPLATE,
   FinanceProcessTemplate,
   suggestTemplateForSubFunction,
 } from '../data/financeProcessTemplates';
@@ -245,9 +246,10 @@ export default function FinanceRoiTcoPanel({
   onSaveProcess?: (proc: Process) => void;
 }) {
   const saved: SavedRoiTcoState | undefined = proc.savedRoiTco;
+  const suggestion = suggestTemplateForSubFunction(proc.subFunction);
   const initialTemplate = saved
-    ? FINANCE_PROCESS_TEMPLATES.find((t) => t.key === saved.templateKey) ?? FINANCE_PROCESS_TEMPLATES[0]
-    : suggestTemplateForSubFunction(proc.subFunction);
+    ? ALL_FINANCE_TEMPLATES.find((t) => t.key === saved.templateKey) ?? suggestion.template
+    : suggestion.template;
 
   const [templateKey, setTemplateKey] = useState(initialTemplate.key);
   const [docsPerMonth, setDocsPerMonth] = useState(saved?.docsPerMonth ?? estimateMonthlyVolumeFromRating(proc.volumeRating));
@@ -258,9 +260,16 @@ export default function FinanceRoiTcoPanel({
   const [fxIdrPerUsd, setFxIdrPerUsd] = useState(saved?.fxIdrPerUsd ?? DEFAULT_FX_IDR_PER_USD);
   const [overrides, setOverrides] = useState<Overrides>(saved?.overrides ?? {});
   const [showHelp, setShowHelp] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
-  const template = FINANCE_PROCESS_TEMPLATES.find((t) => t.key === templateKey) ?? FINANCE_PROCESS_TEMPLATES[0];
+  const template = ALL_FINANCE_TEMPLATES.find((t) => t.key === templateKey) ?? CUSTOM_TEMPLATE;
+  // Shown whenever the CURRENT selection is the neutral fallback — whether we
+  // picked it automatically (nothing in FINANCE_PROCESS_TEMPLATES matched this
+  // process's line of work) or the user chose "Custom / other process"
+  // themselves. Either way the numbers below are generic, not tuned to this
+  // process, and that used to be silent — see CUSTOM_TEMPLATE's comment.
+  const isUsingGenericDefaults = template.key === 'custom';
 
   const updateOverride = <G extends keyof Overrides>(group: G, field: keyof NonNullable<Overrides[G]>, value: number | boolean) => {
     setOverrides((prev) => ({
@@ -459,11 +468,21 @@ export default function FinanceRoiTcoPanel({
 
       {/* Setup */}
       <div className="bg-canvas border border-line rounded-2xl p-4 space-y-3.5">
+        {isUsingGenericDefaults && (
+          <div className="flex items-center gap-2 text-[11px] text-warn bg-warn/10 border border-warn/30 rounded-xl px-3 py-2">
+            <AlertTriangle size={12} className="shrink-0" />
+            <span>
+              No preset matches this process, so the numbers below (pages/doc, review time, accuracy, cost per error — under Advanced
+              assumptions) are generic starting points, not tuned to it. Pick the closest preset above if one fits, or open{' '}
+              <strong className="text-ink-soft">Advanced assumptions</strong> below and enter what you actually know.
+            </span>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <label className="block">
             <span className="text-[10px] uppercase tracking-wider text-mute font-bold">Finance process</span>
             <select value={templateKey} onChange={(e) => setTemplateKey(e.target.value)} className="field !py-1.5 !px-2.5 text-sm w-full mt-1 cursor-pointer">
-              {FINANCE_PROCESS_TEMPLATES.map((t) => (
+              {ALL_FINANCE_TEMPLATES.map((t) => (
                 <option key={t.key} value={t.key}>{t.label}</option>
               ))}
             </select>
@@ -553,7 +572,23 @@ export default function FinanceRoiTcoPanel({
         </div>
       </div>
 
-      {/* Assumption accordions */}
+      {/* Assumption accordions — collapsed behind one toggle by default. The
+          panel's headline numbers (Setup above, Scenarios/Cost-to-build/
+          Man-hours below) are all a process needs to get a rough estimate;
+          these 7 sections (~35 fields total) are for someone who wants to
+          correct a specific assumption, not a requirement to fill in first. */}
+      <button
+        type="button"
+        onClick={() => setShowAdvanced(!showAdvanced)}
+        className="btn-ghost w-full flex items-center justify-between !py-2.5 !px-3.5 text-xs cursor-pointer"
+      >
+        <span className="font-semibold text-ink-soft">Advanced assumptions</span>
+        <span className="flex items-center gap-1.5 text-faint">
+          7 sections, all optional
+          {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
+      </button>
+      {showAdvanced && (
       <div className="space-y-2.5">
         <AssumptionSection title="Volume & document shape" subtitle={`${effectiveConfig.volume.pagesPerDoc} pages/doc · ${effectiveConfig.volume.passesPerDoc} passes/doc`}>
           <NumInput label="Pages / doc" value={effectiveConfig.volume.pagesPerDoc} onChange={(v) => updateOverride('volume', 'pagesPerDoc', v)} />
@@ -626,6 +661,7 @@ export default function FinanceRoiTcoPanel({
           <NumInput label="RPA leakage capture" hint="Typically lower than AI — RPA can't read unstructured content to catch leakage." value={effectiveConfig.rpa.leakageCaptureRatePct} onChange={(v) => updateOverride('rpa', 'leakageCaptureRatePct', v)} isPercent />
         </AssumptionSection>
       </div>
+      )}
 
       {/* Scenario cards */}
       <div className="space-y-2.5">

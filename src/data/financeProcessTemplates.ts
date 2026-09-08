@@ -152,9 +152,50 @@ export const FINANCE_PROCESS_TEMPLATES: FinanceProcessTemplate[] = [
   },
 ];
 
-export function suggestTemplateForSubFunction(subFunction: string): FinanceProcessTemplate {
+/**
+ * Neutral fallback for a process that doesn't fit any of the five presets
+ * above (e.g. Internal Audit, Investment, Revenue Assurance — several
+ * SUBFUNCTIONS_LIST entries have no preset at all). Existing behaviour
+ * silently handed these the AP-invoice numbers (page counts, review
+ * minutes, accuracy, cost-per-error) with no indication that had happened —
+ * "locked into the wrong template" was a real, reported bug, not just an
+ * unlikely edge case. This template's numbers are deliberately generic
+ * (roughly the median of the five presets) rather than tuned to any one
+ * process, and suggestTemplateForSubFunction() below reports the mismatch
+ * explicitly so the UI can show it instead of hiding it.
+ */
+export const CUSTOM_TEMPLATE: FinanceProcessTemplate = {
+  key: 'custom',
+  label: 'Custom / other process',
+  docType: 'other',
+  description: "Doesn't match one of the presets below — using neutral starting numbers. Check Advanced assumptions if you know your process's real figures.",
+  suggestedSubFunctions: [],
+  defaultPagesPerDoc: 1,
+  defaultPassesPerDoc: 1,
+  visionRequired: false,
+  defaultPromptOverheadTokens: 900,
+  defaultFewShotTokens: 600,
+  defaultTokensPerPage: 500,
+  defaultOutputTokensPerDoc: 400,
+  defaultRetryRate: 0.05,
+  defaultReviewMinutesPerDoc: 5,
+  defaultReviewSharePct: 0.5,
+  defaultAccuracyRate: 0.95,
+  defaultCostPerErrorIDR: 200000,
+};
+
+/** The full selectable list — presets first, the neutral fallback last as an explicit "none of these fit" option. */
+export const ALL_FINANCE_TEMPLATES: FinanceProcessTemplate[] = [...FINANCE_PROCESS_TEMPLATES, CUSTOM_TEMPLATE];
+
+export interface TemplateSuggestion {
+  template: FinanceProcessTemplate;
+  /** false = no preset's suggestedSubFunctions matched; `template` is CUSTOM_TEMPLATE and the UI should say so, not silently apply a mismatched preset's numbers. */
+  matched: boolean;
+}
+
+export function suggestTemplateForSubFunction(subFunction: string): TemplateSuggestion {
   const match = FINANCE_PROCESS_TEMPLATES.find((t) =>
     t.suggestedSubFunctions.some((sf) => sf.toLowerCase() === subFunction.toLowerCase())
   );
-  return match ?? FINANCE_PROCESS_TEMPLATES[0];
+  return match ? { template: match, matched: true } : { template: CUSTOM_TEMPLATE, matched: false };
 }

@@ -5,7 +5,7 @@ import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import dotenv from 'dotenv';
 import { runRoiTcoEngine, RoiEngineConfig } from './src/lib/roiTcoEngine.js';
 import { buildDefaultConfig } from './src/lib/roiTcoDefaults.js';
-import { FINANCE_PROCESS_TEMPLATES } from './src/data/financeProcessTemplates.js';
+import { ALL_FINANCE_TEMPLATES } from './src/data/financeProcessTemplates.js';
 
 // Load .env.local first (developer secrets), then fall back to .env. dotenv does
 // not overwrite already-set vars, so the first file to define a key wins.
@@ -977,9 +977,9 @@ app.post('/api/finance/roi-tco', (req, res) => {
     if (body.config) {
       config = body.config;
     } else {
-      const template = FINANCE_PROCESS_TEMPLATES.find((t) => t.key === body.templateKey);
+      const template = ALL_FINANCE_TEMPLATES.find((t) => t.key === body.templateKey);
       if (!template) {
-        return res.status(400).json({ error: `Unknown or missing templateKey. Valid keys: ${FINANCE_PROCESS_TEMPLATES.map((t) => t.key).join(', ')}` });
+        return res.status(400).json({ error: `Unknown or missing templateKey. Valid keys: ${ALL_FINANCE_TEMPLATES.map((t) => t.key).join(', ')}` });
       }
       if (!body.docsPerMonth || !body.oldProcessMonthlyCostIDR) {
         return res.status(400).json({ error: 'docsPerMonth and oldProcessMonthlyCostIDR are required.' });
