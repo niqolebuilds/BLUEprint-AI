@@ -11,7 +11,7 @@
 
 import { findPricingRate, DEFAULT_FX_IDR_PER_USD } from '../data/pricingStandards';
 import { FinanceProcessTemplate } from '../data/financeProcessTemplates';
-import { RoiEngineConfig } from './roiTcoEngine';
+import { RoiEngineConfig, ScenarioMultipliers } from './roiTcoEngine';
 
 export interface BuildConfigOptions {
   template: FinanceProcessTemplate;
@@ -31,6 +31,9 @@ export interface BuildConfigOptions {
     benefit: Partial<RoiEngineConfig['benefit']>;
     ramp: Partial<RoiEngineConfig['ramp']>;
     rpa: Partial<RoiEngineConfig['rpa']>;
+    /** How far the Downside/Upside scenario multipliers diverge from Base — see RoiEngineConfig.scenarioAdjustments. Flat (not nested) so it fits the same group/field override pattern as everything else above. */
+    downsideAdjustment: Partial<ScenarioMultipliers>;
+    upsideAdjustment: Partial<ScenarioMultipliers>;
   }>;
 }
 
@@ -114,6 +117,11 @@ export function buildDefaultConfig(opts: BuildConfigOptions): RoiEngineConfig {
       accuracyRate: 0.97, // RPA is typically very accurate on the well-structured slice it can handle at all
       leakageCaptureRatePct: 0.3, // RPA cannot read unstructured content, so it captures far less addressable leakage than a model that can
       ...o.rpa,
+    },
+
+    scenarioAdjustments: {
+      ...(o.downsideAdjustment ? { downside: o.downsideAdjustment } : {}),
+      ...(o.upsideAdjustment ? { upside: o.upsideAdjustment } : {}),
     },
   };
 
