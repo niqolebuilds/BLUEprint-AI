@@ -1,0 +1,31 @@
+{
+  "name": "@blueprint-ai/vprs-pdf",
+  "version": "1.0.0",
+  "description": "Vendor Production Requirement Specification generator \u2014 JSON spec to print-ready PDF.",
+  "main": "src/index.js",
+  "directories": {
+    "example": "examples",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node test/render.test.js",
+    "example": "node bin/blueprint-pdf.js examples/unit-tax-sp2dk.id.json --out out --manifest",
+    "example:brief": "node bin/blueprint-pdf.js examples/unit-tax-sp2dk.id.json --profile brief --out out --manifest",
+    "example:en": "node bin/blueprint-pdf.js examples/unit-tax-sp2dk.en.json --out out --manifest"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "marked": "^14.1.4",
+    "mermaid": "^11.17.2",
+    "playwright-core": "^1.62.1"
+  },
+  "bin": {
+    "blueprint-pdf": "bin/blueprint-pdf.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

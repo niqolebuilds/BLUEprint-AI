@@ -1155,6 +1155,25 @@ app.post('/api/blueprint', async (req, res) => {
   }
 });
 
+// VPRS PDF pack generator — shares api/_lib/vprsPdf.ts with the Vercel
+// serverless entry (api/vprs-pdf.ts). Locally this renders with whatever
+// Chromium vprs-pdf/src/pdf.js discovers on disk (see PLAYWRIGHT_BROWSERS_PATH);
+// on Vercel the same shared module resolves @sparticuz/chromium instead —
+// see api/_lib/vprsPdf.ts's top comment for that pairing.
+app.post('/api/vprs-pdf', async (req, res) => {
+  try {
+    const { generateVprsPdfPack } = await import('./api/_lib/vprsPdf');
+    if (!req.body?.proc || !req.body?.plan) {
+      return res.status(400).json({ ok: false, error: 'Missing proc or plan in request body.' });
+    }
+    const data = await generateVprsPdfPack(req.body);
+    res.json({ ok: true, data });
+  } catch (err) {
+    console.error('vprs-pdf: generation failed', err);
+    res.json({ ok: false, error: err instanceof Error ? err.message : 'VPRS pack generation failed.' });
+  }
+});
+
 // Configure Vite or Static Asset Serving
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {

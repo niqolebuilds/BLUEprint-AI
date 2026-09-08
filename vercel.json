@@ -1,5 +1,11 @@
 {
   "framework": "vite",
   "buildCommand": "vite build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "functions": {
+    "api/vprs-pdf.ts": {
+      "maxDuration": 60,
+      "memory": 2048
+    }
+  }
 }
