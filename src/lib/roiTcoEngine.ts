@@ -99,6 +99,21 @@ export interface RoiEngineConfig {
   benefit: BenefitAssumptions;
   ramp: RampAssumptions;
   rpa: RpaAssumptions;
+  /**
+   * How far Downside/Upside diverge from Base — see DEFAULT_SCENARIO_MULTIPLIERS
+   * for what an unset value falls back to. THIS WAS THE BUG: every other
+   * assumption in this engine is user-editable, but the scenario spread was
+   * a hardcoded module constant nothing in the UI could ever touch — so no
+   * matter what you changed in the panel, Downside and Upside always sat at
+   * exactly the same fixed ratio to Base. "No matter how I fill in the
+   * table, the scenarios are static" was describing this literally: the
+   * dollar figures did recompute (verified), but the thing that makes a
+   * scenario a scenario — how pessimistic/optimistic it is — never could.
+   * Optional and partial per scenario so leaving it unset reproduces the old
+   * hardcoded behavior exactly; only 'downside' and 'upside' are overridable
+   * — 'base' is 1.0 on every dimension by definition, not a scenario choice.
+   */
+  scenarioAdjustments?: Partial<Record<'downside' | 'upside', Partial<ScenarioMultipliers>>>;
 }
 
 export type ScenarioName = 'downside' | 'base' | 'upside';
@@ -112,11 +127,23 @@ export interface ScenarioMultipliers {
   volumeMult: number;
 }
 
-export const SCENARIO_MULTIPLIERS: Record<ScenarioName, ScenarioMultipliers> = {
+/** Used when a config supplies no scenarioAdjustments for a given scenario — the same numbers this was always hardcoded to. */
+export const DEFAULT_SCENARIO_MULTIPLIERS: Record<ScenarioName, ScenarioMultipliers> = {
   downside: { tokensPerDocMult: 1.3, accuracyMult: 0.9, captureRateMult: 0.6, buildCostMult: 1.3, volumeMult: 0.8 },
   base: { tokensPerDocMult: 1, accuracyMult: 1, captureRateMult: 1, buildCostMult: 1, volumeMult: 1 },
   upside: { tokensPerDocMult: 0.85, accuracyMult: 1.05, captureRateMult: 1.3, buildCostMult: 0.85, volumeMult: 1.15 },
 };
+
+/** @deprecated kept as an alias so any external caller reading the old export name doesn't break — use DEFAULT_SCENARIO_MULTIPLIERS, or resolveScenarioMultipliers() to respect a config's overrides. */
+export const SCENARIO_MULTIPLIERS = DEFAULT_SCENARIO_MULTIPLIERS;
+
+/** Merges a config's scenarioAdjustments (if any) over the default multipliers for one scenario. Base is never overridable. */
+export function resolveScenarioMultipliers(cfg: RoiEngineConfig, name: ScenarioName): ScenarioMultipliers {
+  const base = DEFAULT_SCENARIO_MULTIPLIERS[name];
+  if (name === 'base') return base;
+  const override = cfg.scenarioAdjustments?.[name];
+  return override ? { ...base, ...override } : base;
+}
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -497,7 +524,7 @@ function paybackOrPenalty(summary: OptionSummary, horizonMonths: number): number
 }
 
 function computeSensitivity(cfg: RoiEngineConfig): RoiEngineResult['sensitivity'] {
-  const base = SCENARIO_MULTIPLIERS.base;
+  const base = resolveScenarioMultipliers(cfg, 'base');
   const baseResult = runOption(cfg, base, aiMonthlyTco, cfg.benefit.accuracyRate, cfg.benefit.modelCaptureRatePct);
   const basePayback = paybackOrPenalty(baseResult, cfg.horizonMonths);
 
@@ -538,7 +565,7 @@ function computeSensitivity(cfg: RoiEngineConfig): RoiEngineResult['sensitivity'
 // ---------------------------------------------------------------------------
 
 function computeBuildAndRunCost(cfg: RoiEngineConfig): BuildRunCostSummary {
-  const base = SCENARIO_MULTIPLIERS.base;
+  const base = resolveScenarioMultipliers(cfg, 'base');
   // Full volume, month 1, with amortization/ramp switched off by asking for
   // the steady-state shape directly rather than reading it off any specific
   // ramped month.
@@ -585,11 +612,11 @@ function computeManHoursSaved(cfg: RoiEngineConfig): ManHoursSavedSummary {
 
 export function runRoiTcoEngine(cfg: RoiEngineConfig): RoiEngineResult {
   const scenarios = {} as Record<ScenarioName, OptionSummary>;
-  (Object.keys(SCENARIO_MULTIPLIERS) as ScenarioName[]).forEach((name) => {
-    scenarios[name] = runOption(cfg, SCENARIO_MULTIPLIERS[name], aiMonthlyTco, cfg.benefit.accuracyRate, cfg.benefit.modelCaptureRatePct);
+  (['downside', 'base', 'upside'] as ScenarioName[]).forEach((name) => {
+    scenarios[name] = runOption(cfg, resolveScenarioMultipliers(cfg, name), aiMonthlyTco, cfg.benefit.accuracyRate, cfg.benefit.modelCaptureRatePct);
   });
 
-  const base = SCENARIO_MULTIPLIERS.base;
+  const base = resolveScenarioMultipliers(cfg, 'base');
   const rpaOnly = runOption(cfg, base, rpaMonthlyTco, cfg.rpa.accuracyRate, cfg.rpa.leakageCaptureRatePct);
   const hybrid = runOption(cfg, base, hybridMonthlyTco, cfg.benefit.accuracyRate, cfg.benefit.modelCaptureRatePct);
 

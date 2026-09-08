@@ -11,7 +11,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { runRoiTcoEngine, RoiEngineConfig } from './roiTcoEngine';
+import { runRoiTcoEngine, resolveScenarioMultipliers, DEFAULT_SCENARIO_MULTIPLIERS, RoiEngineConfig } from './roiTcoEngine';
 import { buildDefaultConfig } from './roiTcoDefaults';
 import { FINANCE_PROCESS_TEMPLATES } from '../data/financeProcessTemplates';
 
@@ -222,4 +222,75 @@ test('cost to build & maintain is a simple, un-ramped, un-discounted figure', ()
   const doubledVolume = { ...cfg, volume: { ...cfg.volume, docsPerMonth: cfg.volume.docsPerMonth * 2 } };
   const doubledResult = runRoiTcoEngine(doubledVolume);
   assert.ok(doubledResult.buildAndRunCost.monthlyRunCost.totalIDR > result.buildAndRunCost.monthlyRunCost.totalIDR);
+});
+
+// --- Regression coverage for the reported bug: "no matter how I fill in the
+// table, the scenarios are static." Root cause: SCENARIO_MULTIPLIERS (what
+// actually makes Downside/Upside diverge from Base) was a hardcoded module
+// constant with no config field and no UI control at all — every other
+// assumption in this engine was user-editable, but not this one, so the
+// scenario spread genuinely never responded to any input, no matter which
+// field was changed.
+
+test('resolveScenarioMultipliers falls back to the fixed defaults when a config sets no scenarioAdjustments', () => {
+  const cfg = apInvoiceConfig();
+  assert.deepEqual(resolveScenarioMultipliers(cfg, 'downside'), DEFAULT_SCENARIO_MULTIPLIERS.downside);
+  assert.deepEqual(resolveScenarioMultipliers(cfg, 'upside'), DEFAULT_SCENARIO_MULTIPLIERS.upside);
+  assert.deepEqual(resolveScenarioMultipliers(cfg, 'base'), DEFAULT_SCENARIO_MULTIPLIERS.base);
+});
+
+test('base is never overridable, even if a config tries to set one', () => {
+  const cfg: RoiEngineConfig = {
+    ...apInvoiceConfig(),
+    // @ts-expect-error — 'base' is intentionally excluded from the overridable key type
+    scenarioAdjustments: { base: { tokensPerDocMult: 5 } },
+  };
+  assert.deepEqual(resolveScenarioMultipliers(cfg, 'base'), DEFAULT_SCENARIO_MULTIPLIERS.base);
+});
+
+test('overriding the Downside/Upside spread actually changes those scenarios — the reported bug, fixed', () => {
+  const baseline = apInvoiceConfig();
+  const baselineResult = runRoiTcoEngine(baseline);
+
+  // A config-level override, exactly as buildDefaultConfig's downsideAdjustment/
+  // upsideAdjustment overrides produce, making Downside dramatically worse and
+  // Upside dramatically better than the fixed defaults.
+  const adjusted: RoiEngineConfig = {
+    ...baseline,
+    scenarioAdjustments: {
+      downside: { tokensPerDocMult: 3, accuracyMult: 0.5, captureRateMult: 0.2, buildCostMult: 3, volumeMult: 0.5 },
+      upside: { tokensPerDocMult: 0.3, accuracyMult: 1.05, captureRateMult: 2, buildCostMult: 0.3, volumeMult: 2 },
+    },
+  };
+  const adjustedResult = runRoiTcoEngine(adjusted);
+
+  assert.notEqual(
+    adjustedResult.scenarios.downside.avgMonthlyTco.totalIDR,
+    baselineResult.scenarios.downside.avgMonthlyTco.totalIDR,
+    'a Downside spread override must change the Downside scenario'
+  );
+  assert.notEqual(
+    adjustedResult.scenarios.upside.avgMonthlyTco.totalIDR,
+    baselineResult.scenarios.upside.avgMonthlyTco.totalIDR,
+    'an Upside spread override must change the Upside scenario'
+  );
+  // Base is defined as "no adjustment" — it must be untouched by either override.
+  assert.deepEqual(adjustedResult.scenarios.base, baselineResult.scenarios.base);
+
+  // The wider spread must actually widen the gap between the scenarios, not
+  // just move all three in lockstep.
+  const baselineSpread = baselineResult.scenarios.upside.npvIDR - baselineResult.scenarios.downside.npvIDR;
+  const adjustedSpread = adjustedResult.scenarios.upside.npvIDR - adjustedResult.scenarios.downside.npvIDR;
+  assert.ok(adjustedSpread > baselineSpread, 'a wider configured spread must produce a wider NPV gap between Downside and Upside');
+});
+
+test('a partial scenario override only changes the dimensions it specifies, leaving the rest at default', () => {
+  const cfg: RoiEngineConfig = {
+    ...apInvoiceConfig(),
+    scenarioAdjustments: { downside: { volumeMult: 0.5 } }, // only volume overridden
+  };
+  const resolved = resolveScenarioMultipliers(cfg, 'downside');
+  assert.equal(resolved.volumeMult, 0.5);
+  assert.equal(resolved.tokensPerDocMult, DEFAULT_SCENARIO_MULTIPLIERS.downside.tokensPerDocMult);
+  assert.equal(resolved.accuracyMult, DEFAULT_SCENARIO_MULTIPLIERS.downside.accuracyMult);
 });

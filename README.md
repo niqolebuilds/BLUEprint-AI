@@ -94,6 +94,19 @@ section of the panel:
   payback/NPV — soft capacity was previously blended into "Total benefit"
   despite the code comments already saying it shouldn't be.
 
+**Fixed (second pass):** "no matter how I fill in the table, the scenarios
+are static" — true, literally. Every assumption in the engine was
+user-editable *except* the one thing that actually defines a scenario: how
+far Downside/Upside diverge from Base. `SCENARIO_MULTIPLIERS` was a
+hardcoded module constant with no config field and no UI control, so the
+three columns' relative spread could never respond to anything you typed —
+confirmed by editing a high-impact field (Accuracy rate) and watching the
+dollar figures move correctly while the *spread itself* stayed fixed.
+`RoiEngineConfig.scenarioAdjustments` (optional, defaults to the same fixed
+numbers) now makes it a real input — a new "Scenario spread (Downside /
+Upside)" section under Advanced assumptions — see
+`resolveScenarioMultipliers()` in `roiTcoEngine.ts`.
+
 See:
 
 - `src/lib/roiTcoEngine.ts` — the calculation engine (pure TypeScript, no
@@ -120,8 +133,11 @@ savings don't leak into hard-cash payback, a higher old-process cost strictly
 improves benefit once decommissioned (the regression test for the fix above),
 man-hours saved and build/run cost are reported independently of the
 cash-driven benefit, payback lengthens as the
-parallel-run window grows, and the engine runs for multiple configured
-processes with zero code changes (config only).
+parallel-run window grows, the engine runs for multiple configured
+processes with zero code changes (config only), overriding the Downside/
+Upside scenario spread actually changes those scenarios while leaving Base
+untouched (the regression test for the second fix above), and a config
+that sets no scenario override reproduces the original fixed spread exactly.
 
 ### VPRS PDF generator (Prepare for Production)
 
