@@ -668,17 +668,13 @@ export default function FinanceRoiTcoPanel({
           subtitle="what actually makes a scenario a scenario — editable, not fixed"
         >
           <div className="col-span-2 sm:col-span-3 text-[10px] text-faint -mt-1 mb-1">
-            100% = same as Base. These are the only assumptions with no per-process default — every process starts at the same fixed spread until edited here.
+            100% = same as Base. These are the only assumptions with no per-process default — every process starts at the same fixed spread until edited here. Tokens/doc and build-cost spread are fixed at Base's default multiplier (low real-world leverage) — edit accuracy, leakage capture or volume to move a scenario.
           </div>
-          <NumInput label="Downside · tokens/doc" hint="Share of Base's tokens-per-document in the Downside case. >100% = pricier than Base." value={downsideMult.tokensPerDocMult} onChange={(v) => updateOverride('downsideAdjustment', 'tokensPerDocMult', v)} isPercent />
           <NumInput label="Downside · accuracy" hint="Multiplies Base's accuracy rate. <100% = worse accuracy than Base." value={downsideMult.accuracyMult} onChange={(v) => updateOverride('downsideAdjustment', 'accuracyMult', v)} isPercent />
           <NumInput label="Downside · leakage capture" hint="Multiplies the model/RPA capture rate. <100% = catches less leakage than Base." value={downsideMult.captureRateMult} onChange={(v) => updateOverride('downsideAdjustment', 'captureRateMult', v)} isPercent />
-          <NumInput label="Downside · build cost" hint="Multiplies the one-time build cost. >100% = costlier to build than Base." value={downsideMult.buildCostMult} onChange={(v) => updateOverride('downsideAdjustment', 'buildCostMult', v)} isPercent />
           <NumInput label="Downside · volume" hint="Multiplies docs/month. <100% = less volume flows through than Base." value={downsideMult.volumeMult} onChange={(v) => updateOverride('downsideAdjustment', 'volumeMult', v)} isPercent />
-          <NumInput label="Upside · tokens/doc" hint="Share of Base's tokens-per-document in the Upside case. <100% = cheaper than Base." value={upsideMult.tokensPerDocMult} onChange={(v) => updateOverride('upsideAdjustment', 'tokensPerDocMult', v)} isPercent />
           <NumInput label="Upside · accuracy" hint="Multiplies Base's accuracy rate. >100% = better accuracy than Base (clamped at 99.9%)." value={upsideMult.accuracyMult} onChange={(v) => updateOverride('upsideAdjustment', 'accuracyMult', v)} isPercent />
           <NumInput label="Upside · leakage capture" hint="Multiplies the model/RPA capture rate. >100% = catches more leakage than Base." value={upsideMult.captureRateMult} onChange={(v) => updateOverride('upsideAdjustment', 'captureRateMult', v)} isPercent />
-          <NumInput label="Upside · build cost" hint="Multiplies the one-time build cost. <100% = cheaper to build than Base." value={upsideMult.buildCostMult} onChange={(v) => updateOverride('upsideAdjustment', 'buildCostMult', v)} isPercent />
           <NumInput label="Upside · volume" hint="Multiplies docs/month. >100% = more volume flows through than Base." value={upsideMult.volumeMult} onChange={(v) => updateOverride('upsideAdjustment', 'volumeMult', v)} isPercent />
         </AssumptionSection>
       </div>
