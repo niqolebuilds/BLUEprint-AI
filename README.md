@@ -128,17 +128,49 @@ HTML it was built from.
 **Chromium.** The PDF stage needs a real browser. Locally, `vprs-pdf/src/pdf.js`
 finds one on disk itself (e.g. under `PLAYWRIGHT_BROWSERS_PATH`) — nothing to
 configure. On Vercel there's no browser in the function image, so
-`api/_lib/vprsPdf.ts` resolves one via `@sparticuz/chromium` instead, only
-when `process.env.VERCEL` is set. **This pairing is version-pinned, not
-range-matched:** `playwright-core` and `@sparticuz/chromium` are both exact
-versions (not `^`) in `package.json`, hand-verified together (a full 26-page
-reference pack, including a mermaid diagram, rendered correctly). A `^`
-range on `playwright-core` would drift to expect a newer Chromium revision
-than whatever `@sparticuz/chromium` last shipped — bump both together and
-re-render the reference example before trusting a version bump here.
+`api/_lib/vprsPdf.ts` resolves one via `@sparticuz/chromium-min` instead,
+only when `process.env.VERCEL` is set, downloading a brotli-packed Chromium
+from a GitHub Releases URL on cold start (~2.5s, hand-verified; cached in
+`/tmp` for the rest of that container's life).
+
+**Use `-min`, not the full `@sparticuz/chromium` package — this bit us
+once already.** The full package's own npm tarball is ~70MB, comfortably
+over Vercel's 50MB-*compressed* serverless function limit before counting
+`mermaid`/`playwright-core`/`ajv`/`marked`/app code. Shipping it as a normal
+dependency very likely fails the `api/vprs-pdf.ts` function's build on every
+deploy — which looks exactly like "redeployed and the feature still isn't
+there," because a function that fails to build doesn't get any smaller or
+better on a plain redeploy. `-min` is ~15KB (verified via `npm pack`) since
+it fetches the binary at runtime instead of bundling it.
+
+**Version pinning, and why 143.0.4 specifically (not the newest).**
+`playwright-core` and `@sparticuz/chromium-min` are both exact versions (not
+`^`) in `package.json` — a `^` range on `playwright-core` drifts to expect a
+newer Chromium revision than whatever `@sparticuz/chromium-min` last
+shipped. 143.0.4 was chosen over newer releases (149.x+) because
+`@sparticuz/chromium(-min)` versions from 147.0.0 onward require Node
+`>=22.17.0` in their own `package.json` `engines` field, while 143.0.4 only
+needs Node `>=20.11.0` — far more likely to match whatever Node runtime this
+Vercel project is actually configured for (a version requiring a newer Node
+than the project runs is a second, harder-to-diagnose way for this to
+silently not work). Hand-verified with a genuinely cold cache (no warm
+`/tmp/chromium`): the vendored tool's full 26-page reference example,
+mermaid diagram included, rendered correctly through `playwright-core@1.62.1`
++ this exact `chromium-v143.0.4-pack.x64.tar`. Bump the two together, and
+before trusting a newer pairing, re-check both the release asset name
+(`github.com/Sparticuz/chromium/releases`, filename
+`chromium-v<version>-pack.x64.tar`) and its `engines.node` requirement.
+
 `vercel.json` also raises this one function's `maxDuration` (60s) and
 `memory` (2048MB) — PDF rendering is slower and heavier than the app's other
 serverless calls.
+
+**If the feature still doesn't appear after this fix**, the next things to
+check are on Vercel's side, not in this repo: (1) the project's **Production
+Branch** in Settings → Git actually matches the branch you push to (a
+default-branch rename in GitHub doesn't automatically update this), and (2)
+the build/function logs for the actual deployment — a build failure or a
+runtime error on `/api/vprs-pdf` will show there directly.
 
 **Language.** The Group-boilerplate defaults in `vprs-pdf/src/defaults.js`
 (security roles, documentation checklist, support SLAs, vendor deliverables,

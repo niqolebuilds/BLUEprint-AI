@@ -13,12 +13,38 @@
  * CHROMIUM: locally, vprs-pdf/src/pdf.js discovers a Chromium under
  * PLAYWRIGHT_BROWSERS_PATH itself — nothing to do here. On Vercel there is no
  * browser in the function image, so resolveServerlessChromium() below
- * supplies one via @sparticuz/chromium. That pairing (chromium 149.0.0 +
- * playwright-core 1.62.1, both pinned exactly in package.json rather than
- * range-matched) was verified by hand — a full 26-page reference pack,
- * mermaid diagram included, rendered correctly through it. Bump the two
- * together and re-verify; an unpinned playwright-core will drift to expect a
- * newer Chromium revision than whatever @sparticuz/chromium last shipped.
+ * supplies one via @sparticuz/chromium-min, which downloads a brotli-packed
+ * Chromium from a GitHub Releases URL on cold start (~2.5s, cached in /tmp
+ * for the container's lifetime — see resolveServerlessChromium()'s module-
+ * level cache below).
+ *
+ * IMPORTANT — this used to be the full @sparticuz/chromium package, and that
+ * was a real bug, not just a suboptimal choice: its own npm tarball is
+ * ~70MB, which is already over Vercel's 50MB-COMPRESSED serverless function
+ * limit before counting mermaid/playwright-core/ajv/marked/app code. That
+ * almost certainly made every deploy of api/vprs-pdf.ts fail at build time —
+ * which reads exactly like "redeployed and it's still not there," because a
+ * failed function build doesn't update what's live. @sparticuz/chromium-min
+ * ships as ~15KB (verified) since it fetches the binary at runtime instead
+ * of bundling it — check Vercel's build/function logs for this project's
+ * actual deployment to confirm this was really it, but it is the one
+ * concrete, verified way this could silently fail to ship.
+ *
+ * VERSION PINNING: chromium 143.0.4 (not the newest, 149.x) + playwright-core
+ * 1.62.1 — both exact versions in package.json, not ranges. Two reasons for
+ * 143.0.4 specifically: (1) @sparticuz/chromium(-min) versions from 147.0.0
+ * onward require Node >=22.17.0 in their own package.json engines field;
+ * 143.0.4 only requires Node >=20.11.0, which is far more likely to match
+ * whatever Node runtime this Vercel project is actually configured for —
+ * requiring a newer Node than the project runs would be a second, harder-to-
+ * diagnose way for this to silently not work. (2) It's still hand-verified:
+ * a fresh cold-start download (no warm /tmp cache) of the exact
+ * v143.0.4-pack.x64.tar release asset, launched via playwright-core 1.62.1,
+ * rendered the vendored tool's full 26-page reference example (mermaid
+ * diagram included) correctly. Bump chromium/playwright-core only together,
+ * and re-verify both the download URL (github.com/Sparticuz/chromium/releases
+ * — filename is `chromium-v<version>-pack.x64.tar`) and the Node engines
+ * requirement before moving past 143.x.
  */
 import { randomUUID } from 'crypto';
 import fs from 'fs';
@@ -316,6 +342,13 @@ export function buildVprsSpec(input: GenerateVprsPdfPackInput): Record<string, u
 
 /* =========================== Serverless Chromium =========================== */
 
+// Must match the @sparticuz/chromium-min version pinned in package.json —
+// this is the release tag whose pack this downloads. See the file-level
+// comment above for why 143.0.4 specifically (Node engine compatibility)
+// and how to safely bump it.
+const SPARTICUZ_CHROMIUM_VERSION = '143.0.4';
+const SPARTICUZ_PACK_URL = `https://github.com/Sparticuz/chromium/releases/download/v${SPARTICUZ_CHROMIUM_VERSION}/chromium-v${SPARTICUZ_CHROMIUM_VERSION}-pack.x64.tar`;
+
 let cachedSparticuz: { executablePath: string; args: string[] } | null = null;
 
 /**
@@ -324,17 +357,22 @@ let cachedSparticuz: { executablePath: string; args: string[] } | null = null;
  * other host — vprs-pdf/src/pdf.js's own discoverChromium() already finds a
  * dev-machine Chromium (e.g. under PLAYWRIGHT_BROWSERS_PATH) when this
  * returns null, so this only needs to act on Vercel.
+ *
+ * Downloads and extracts the pack from GitHub Releases on the first call in
+ * a given function instance (~2.5s, hand-verified) and caches the result
+ * both here (module scope survives warm invocations) and on disk (@sparticuz/
+ * chromium-min itself skips the download if /tmp/chromium already exists —
+ * so a warm container pays this cost once, not per-request).
  */
 async function resolveServerlessChromium(): Promise<{ executablePath: string; args: string[] } | null> {
   if (!process.env.VERCEL) return null;
   if (cachedSparticuz) return cachedSparticuz;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const chromiumModule = (await import('@sparticuz/chromium')).default as {
-    executablePath: () => Promise<string>;
+  const chromiumModule = (await import('@sparticuz/chromium-min')).default as {
+    executablePath: (url: string) => Promise<string>;
     args: string[];
   };
   cachedSparticuz = {
-    executablePath: await chromiumModule.executablePath(),
+    executablePath: await chromiumModule.executablePath(SPARTICUZ_PACK_URL),
     args: chromiumModule.args,
   };
   return cachedSparticuz;
