@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { BellRing, CircleCheck, Flame, Lightbulb, Plus } from 'lucide-react';
 import { ImprovementItem, Process } from '../types';
 import { MOCK_USERS } from '../data/mockData';
-import { CLASSIFICATION_META, uid } from '../lib/utils';
+import { CLASSIFICATION_META, estimateRiceForProcess, formatIDRCompact, riceAnnualSavingsIDR, uid } from '../lib/utils';
 import { Avatar, Meter, Stat } from './ui';
 
 const STATUS_FLOW: ImprovementItem['status'][] = ['Identified', 'In Progress', 'Resolved'];
@@ -41,6 +41,16 @@ export default function DashboardManager({
 
   const tracked = new Set(improvementItems.map((i) => i.processId));
 
+  // Guided-improvement savings roll-up (L3): same RICE-derivation the L1/L2 RICE
+  // leaderboard uses, annualized to rupiah, summed across every tracked item —
+  // this is the number that also feeds the CFO dashboard's portfolio total once
+  // an item is promoted to a Locked Project.
+  const estimateItemAnnualSavingsIDR = (item: ImprovementItem) => {
+    const proc = processes.find((p) => p.id === item.processId);
+    return riceAnnualSavingsIDR(estimateRiceForProcess(proc, { title: item.processTitle }));
+  };
+  const guidedSavingsIDR = improvementItems.reduce((sum, item) => sum + estimateItemAnnualSavingsIDR(item), 0);
+
   const acceptRecommendation = (proc: Process) => {
     const solution: ImprovementItem['recommendedSolution'] =
       (proc.automationSuitability ?? 0) >= 80 ? 'Automation' : (proc.effortRating ?? 0) >= 4 ? 'Agentic AI' : 'Simplification';
@@ -60,10 +70,16 @@ export default function DashboardManager({
     <div className="animate-fade-up space-y-5">
       <h2 className="font-display text-xl font-semibold tracking-tight">Team space</h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 print:break-inside-avoid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:break-inside-avoid">
         <Stat label="Team completion" value={`${completionPct}%`} hint="of personnel fully documented" accent="citron" />
         <Stat label="High-effort workflows" value={highEffort.length} hint="flagged for improvement" accent="veil" />
         <Stat label="Guidance items" value={improvementItems.filter((i) => i.status !== 'Resolved').length} hint="open vs resolved tracked below" />
+        <Stat
+          label="Guided improvement savings"
+          value={formatIDRCompact(guidedSavingsIDR)}
+          hint="est. annual, across tracked items"
+          accent="citron"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -190,8 +206,17 @@ export default function DashboardManager({
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
+                      <div className="text-[10px] mt-1 font-medium">
+                        {item.linkedProjectId ? (
+                          <span className="text-ok">→ Locked Project · status syncs both ways</span>
+                        ) : (
+                          <span className="text-faint">Awaiting L1/L2 RICE triage</span>
+                        )}
+                      </div>
                     </td>
-                    <td className="py-3 text-xs text-mute whitespace-nowrap">{item.realizedSavings ?? '—'}</td>
+                    <td className="py-3 text-xs text-mute whitespace-nowrap">
+                      {item.realizedSavings ?? `${formatIDRCompact(estimateItemAnnualSavingsIDR(item))}/yr (est.)`}
+                    </td>
                   </tr>
                 );
               })}

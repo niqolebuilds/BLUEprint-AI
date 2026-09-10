@@ -13,8 +13,18 @@ import {
 import { ArrowRight, ArrowUpRight, Award, Route, Target, TrendingUp } from 'lucide-react';
 import { ImprovementItem, ManagedProject, Persona, Process, ProjectStage } from '../types';
 import { SUBFUNCTIONS_LIST } from '../data/mockData';
-import { CHART_COLORS, classificationCounts, CLASSIFICATION_META, computeRiceScore, formatRiceImpact, formatRiceScoreValue, timeAgo } from '../lib/utils';
-import { Avatar, Meter, Stat, StatusChip } from './ui';
+import {
+  CHART_COLORS,
+  classificationCounts,
+  CLASSIFICATION_META,
+  computeRiceScore,
+  formatIDRCompact,
+  formatRiceImpact,
+  formatRiceScoreValue,
+  riceAnnualSavingsIDR,
+  timeAgo,
+} from '../lib/utils';
+import { Avatar, Meter, RiceInfoTooltip, Stat, StatusChip } from './ui';
 import { useLanguage } from '../lib/i18n';
 
 const TOOLTIP_STYLE = {
@@ -90,6 +100,16 @@ export default function DashboardCFO({
     [managedProjects],
   );
 
+  // Portfolio savings roll-up (L1-L4 linkage): every RICE-scored Locked Project's
+  // impact, annualized to rupiah — realised once the project reaches Stage 6.
+  const scoredProjects = managedProjects.filter((p) => !!p.rice);
+  const totalAnnualSavingsIDR = scoredProjects.reduce((s, p) => s + riceAnnualSavingsIDR(p.rice!), 0);
+  const realizedScoredCount = scoredProjects.filter((p) => p.stage === '6: Realised Benefit').length;
+
+  // Improvement guidance board items not yet promoted to a Locked Project —
+  // L1/L2's RICE triage queue.
+  const pendingTriage = improvementItems.filter((i) => !i.linkedProjectId);
+
   const automationCandidates = processes.filter((p) => (p.automationSuitability ?? 0) >= 70).length;
   const avgCompleteness = processes.length
     ? Math.round(processes.reduce((s, p) => s + p.completenessScore, 0) / processes.length)
@@ -109,12 +129,31 @@ export default function DashboardCFO({
         <span className="text-xs text-faint">{t('dash_last_refreshed')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
 
+      {/* RICE triage queue — Improvement guidance board items an L1/L2 hasn't promoted to a Locked Project yet */}
+      {(currentPersona === 'L1' || currentPersona === 'L2') && pendingTriage.length > 0 && onNavigateToProject && (
+        <button
+          onClick={onNavigateToProject}
+          className="w-full card !p-4 flex items-center justify-between gap-3 bg-citron-soft border-transparent hover:brightness-95 transition-all cursor-pointer text-left print:hidden"
+        >
+          <span className="text-xs font-semibold text-citron-deep">
+            {pendingTriage.length} {t('dash_rice_pending_text')}
+          </span>
+          <span className="text-xs font-bold text-citron-deep flex items-center gap-1 shrink-0">{t('dash_rice_pending_cta')} <ArrowRight size={12} /></span>
+        </button>
+      )}
+
       {/* Stat tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:break-inside-avoid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 print:break-inside-avoid">
         <Stat label={t('header_processes_documented')} value={processes.length} hint={t('stat_processes_documented_hint')} accent="citron" />
         <Stat label={t('header_avg_completeness')} value={`${avgCompleteness}%`} hint={t('stat_avg_completeness_hint')} />
         <Stat label={t('stat_automation_candidates')} value={automationCandidates} hint={t('stat_automation_candidates_hint')} accent="veil" />
         <Stat label={t('stat_improvements_resolved')} value={`${resolvedImprovements}/${improvementItems.length}`} hint={t('stat_improvements_resolved_hint')} />
+        <Stat
+          label={t('stat_rice_savings')}
+          value={formatIDRCompact(totalAnnualSavingsIDR)}
+          hint={`${realizedScoredCount}/${scoredProjects.length} ${t('stat_rice_savings_hint')}`}
+          accent="citron"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -210,12 +249,21 @@ export default function DashboardCFO({
           {/* RICE Score Summary (L1) — champions (L2 subfunction view) */}
           {currentPersona === 'L1' ? (
             <div className="card p-6 lg:col-span-2 print:break-inside-avoid">
-              <h3 className="font-display font-semibold text-sm flex items-center gap-2">
-                <Target size={15} className="text-citron-deep" /> {t('dash_rice_summary')}
-              </h3>
-              <p className="text-[11px] text-mute mt-0.5">
-                {t('dash_rice_formula')}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-display font-semibold text-sm flex items-center gap-2">
+                    <Target size={15} className="text-citron-deep" /> {t('dash_rice_summary')}
+                  </h3>
+                  <p className="text-[11px] text-mute mt-0.5">
+                    {t('dash_rice_formula')}
+                  </p>
+                </div>
+                {onNavigateToProject && riceRanked.length > 0 && (
+                  <button onClick={onNavigateToProject} className="text-[11px] font-semibold text-veil-deep hover:underline whitespace-nowrap cursor-pointer print:hidden">
+                    {t('dash_rice_view_leaderboard')}
+                  </button>
+                )}
+              </div>
               {riceRanked.length === 0 ? (
                 <div className="mt-4 py-6 text-center text-xs text-faint border border-dashed border-line rounded-2xl">
                   {t('dash_rice_empty')}
@@ -228,11 +276,14 @@ export default function DashboardCFO({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline justify-between gap-2">
                           <span className="text-sm font-medium truncate">{project.title}</span>
-                          <span
-                            className="font-display text-sm font-bold text-citron-deep shrink-0"
-                            title={`RICE score: ${score.toLocaleString('en-US', { maximumFractionDigits: 1 })}`}
-                          >
-                            {formatRiceScoreValue(score)}
+                          <span className="flex items-center gap-1 shrink-0">
+                            <span
+                              className="font-display text-sm font-bold text-citron-deep"
+                              title={`RICE score: ${score.toLocaleString('en-US', { maximumFractionDigits: 1 })}`}
+                            >
+                              {formatRiceScoreValue(score)}
+                            </span>
+                            <RiceInfoTooltip lines={project.rice.reasoning ?? []} autoEstimated={project.rice.autoEstimated} />
                           </span>
                         </div>
                         <div className="text-[11px] text-faint">

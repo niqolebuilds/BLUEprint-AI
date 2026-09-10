@@ -118,6 +118,8 @@ export interface ImprovementItem {
   ownerName: string;
   expectedImpact: string;
   realizedSavings?: string; // e.g. "40 hrs/month"
+  /** Set once L1/L2 promotes this item to a Locked Project — links the two records and keeps status in sync. */
+  linkedProjectId?: string;
 }
 
 export interface SystemItem {
@@ -344,6 +346,10 @@ export interface RiceScore {
   impactUnit: 'IDR' | 'hours_per_month';
   confidence: number; // 0-100 (%) — how sure we are of the reach/impact estimate
   effort: number; // person-weeks of work (time, and money that has to be spent) to deliver
+  /** Line-by-line explanation of how each figure above was derived — shown behind a (?) in the UI. */
+  reasoning?: string[];
+  /** True until an L1/L2 edits the auto-estimate, at which point it becomes a deliberate input. */
+  autoEstimated?: boolean;
 }
 
 export interface ManagedProject {
@@ -358,6 +364,8 @@ export interface ManagedProject {
   progressPercent: number;
   targetDate: string;
   rice?: RiceScore;
+  /** Set when this project was promoted from an Improvement guidance board item — keeps the two in sync. */
+  sourceImprovementItemId?: string;
 }
 
 

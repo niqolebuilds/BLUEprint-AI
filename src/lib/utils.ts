@@ -1,4 +1,5 @@
 import { Process, ProcessStep, RiceScore } from '../types';
+import { DEFAULT_FX_IDR_PER_USD, PRICING_STANDARDS } from '../data/pricingStandards';
 
 export function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -142,6 +143,75 @@ export function computeRiceScore(rice: RiceScore): number {
 export function formatRiceImpact(rice: RiceScore): string {
   if (rice.impactUnit === 'hours_per_month') return `${rice.impact.toLocaleString('id-ID')} hrs/mo`;
   return `Rp ${rice.impact.toLocaleString('id-ID')}`;
+}
+
+/** Same loaded wage the ROI/TCO engine charges for human-in-the-loop review time — reused so a "wks/hrs saved" figure converts to rupiah consistently everywhere in the app. */
+const LOADED_HOURLY_WAGE_IDR =
+  (PRICING_STANDARDS.find((p) => p.key === 'reviewer_loaded_wage')?.rateUsd ?? 4.6875) * DEFAULT_FX_IDR_PER_USD;
+
+/**
+ * Auto-estimates RICE inputs (US: L1 portfolio triage) from a process's own
+ * capture ratings, so a locked project always starts with a defensible score
+ * instead of an empty form. Every figure is derived from a rating the owner
+ * already entered while documenting the process — `reasoning` spells out the
+ * derivation for the (?) breakdown in the UI. L1/L2 can edit any input
+ * afterwards; that overwrite is what flips `autoEstimated` to false.
+ */
+export function estimateRiceForProcess(
+  proc: Process | undefined,
+  fallback: { title: string },
+): RiceScore {
+  const volume = proc?.volumeRating ?? 3;
+  const repetitiveness = proc?.repetitivenessRating ?? 3;
+  const errorSensitivity = proc?.errorSensitivityRating ?? 3;
+  const effortRating = proc?.effortRating ?? 3;
+  const completeness = proc?.completenessScore ?? 50;
+
+  // Reach: transactions/cases this process touches per month, banded off the
+  // 1-5 volume rating captured for the process.
+  const REACH_BY_VOLUME: Record<number, number> = { 1: 25, 2: 75, 3: 200, 4: 500, 5: 1000 };
+  const reach = REACH_BY_VOLUME[volume] ?? 200;
+
+  // Impact: minutes saved per transaction scale with how repetitive the work
+  // is and how costly an error is to rework, then multiply out by reach for
+  // a total monthly hours figure (same shape as the seeded example projects).
+  const minutesSavedPerTxn = 5 + repetitiveness * 3 + errorSensitivity * 2;
+  const hoursSavedPerMonth = Math.round((reach * minutesSavedPerTxn) / 60);
+
+  // Confidence: better-documented processes (completeness score) make for a
+  // more trustworthy estimate; automation suitability nudges it further.
+  const confidence = Math.round(
+    Math.min(90, Math.max(30, 30 + completeness * 0.4 + (proc?.automationSuitability ?? 0) * 0.2)),
+  );
+
+  // Effort: person-weeks to deliver, banded off the 1-5 effort rating.
+  const EFFORT_WEEKS_BY_RATING: Record<number, number> = { 1: 2, 2: 4, 3: 6, 4: 10, 5: 16 };
+  const effort = EFFORT_WEEKS_BY_RATING[effortRating] ?? 6;
+
+  const title = proc?.title ?? fallback.title;
+  const reasoning = [
+    `Reach ${reach.toLocaleString('id-ID')} transactions/mo — from "${title}"'s volume rating (${volume}/5).`,
+    `Impact ${hoursSavedPerMonth.toLocaleString('id-ID')} hrs/mo saved — ~${minutesSavedPerTxn} min/txn from repetitiveness (${repetitiveness}/5) and error-sensitivity (${errorSensitivity}/5), × reach.`,
+    `Confidence ${confidence}% — from ${completeness}% documentation completeness${proc?.automationSuitability != null ? ` and ${proc.automationSuitability} automation suitability` : ''}.`,
+    `Effort ${effort} person-weeks — from the process's effort rating (${effortRating}/5).`,
+    'Auto-estimated from process ratings — edit any figure to refine with real numbers.',
+  ];
+
+  return {
+    reach,
+    impact: hoursSavedPerMonth,
+    impactUnit: 'hours_per_month',
+    confidence,
+    effort,
+    reasoning,
+    autoEstimated: true,
+  };
+}
+
+/** Converts a RICE impact figure (rupiah or hours/month) to a single annualized rupiah value, for savings roll-ups. */
+export function riceAnnualSavingsIDR(rice: RiceScore): number {
+  if (rice.impactUnit === 'IDR') return rice.impact * 12;
+  return rice.impact * 12 * LOADED_HOURLY_WAGE_IDR;
 }
 
 /**

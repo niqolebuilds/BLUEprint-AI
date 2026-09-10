@@ -58,6 +58,7 @@ type WorkspaceProps = {
   onTriggerAdminNotification: (subject: string, msg: string, type: 'individual' | 'level' | 'subfunction' | 'all', val: string) => void;
   onAddImprovementItem: (item: ImprovementItem) => void;
   onUpdateImprovementItem: (item: ImprovementItem) => void;
+  onPromoteImprovementItem?: (item: ImprovementItem) => void;
   onUpdateProject?: (proj: ManagedProject) => void;
   onAddProject?: (proj: ManagedProject) => void;
   onDeleteProject?: (projectId: string) => void;
@@ -121,6 +122,7 @@ function WorkspaceShell({
   onTriggerAdminNotification,
   onAddImprovementItem,
   onUpdateImprovementItem,
+  onPromoteImprovementItem,
   onUpdateProject,
   onAddProject,
   onDeleteProject,
@@ -413,6 +415,8 @@ function WorkspaceShell({
               <ProjectManagement
                 projects={projectsManaged}
                 catalogueProcesses={processes}
+                improvementItems={improvementItems}
+                onPromoteImprovementItem={onPromoteImprovementItem || (() => {})}
                 teamMembers={teamMembers}
                 transcripts={transcripts}
                 meetingNotes={meetingNotes}

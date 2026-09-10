@@ -42,10 +42,21 @@ import {
   UserNotification,
   ProjectStage,
   Process,
+  ImprovementItem,
+  RiceScore,
 } from '../types';
-import { Avatar } from './ui';
+import { Avatar, RiceInfoTooltip } from './ui';
 import { useLanguage } from '../lib/i18n';
-import { uid, timeAgo } from '../lib/utils';
+import {
+  computeRiceScore,
+  estimateRiceForProcess,
+  formatIDRCompact,
+  formatRiceImpact,
+  formatRiceScoreValue,
+  riceAnnualSavingsIDR,
+  uid,
+  timeAgo,
+} from '../lib/utils';
 
 /**
  * Renders modal overlays into document.body via a portal. This is required
@@ -71,6 +82,8 @@ type ProjectSectionId = 'team' | 'transcripts' | 'assistant' | 'timeline' | 'okr
 export default function ProjectManagement({
   projects,
   catalogueProcesses = [],
+  improvementItems = [],
+  onPromoteImprovementItem,
   teamMembers,
   transcripts,
   meetingNotes,
@@ -98,6 +111,8 @@ export default function ProjectManagement({
 }: {
   projects: ManagedProject[];
   catalogueProcesses?: Process[];
+  improvementItems?: ImprovementItem[];
+  onPromoteImprovementItem?: (item: ImprovementItem) => void;
   teamMembers: TeamMember[];
   transcripts: MeetingTranscript[];
   meetingNotes: MeetingNote[];
@@ -176,6 +191,19 @@ export default function ProjectManagement({
   // Notifications modal for L2 and L3
   const [showAlertsModal, setShowAlertsModal] = useState(false);
   const isL2orL3 = currentPersona === 'L2' || currentPersona === 'L3';
+  // RICE triage (promoting a guidance-board item, editing a RICE score) is an
+  // L1/L2 portfolio-prioritization call; L3 and others see the same board read-only.
+  const canTriageRice = currentPersona === 'L1' || currentPersona === 'L2' || currentPersona === 'Admin';
+
+  // RICE leaderboard state
+  const [riceEditingProjectId, setRiceEditingProjectId] = useState<string | null>(null);
+  const [riceEditDraft, setRiceEditDraft] = useState<RiceScore | null>(null);
+
+  const pendingImprovementCandidates = improvementItems.filter((i) => !i.linkedProjectId);
+  const riceLeaderboard = projects
+    .filter((p): p is ManagedProject & { rice: RiceScore } => !!p.rice)
+    .map((p) => ({ project: p, score: computeRiceScore(p.rice) }))
+    .sort((a, b) => b.score - a.score);
   const unreadAlerts = notifications.filter((n) => n.status === 'Unread');
 
   // Lock New Project modal (Catalogue Import workflow)
@@ -260,7 +288,10 @@ export default function ProjectManagement({
     setMeetingRawText((prev) => (prev ? prev + "\n\n" + speechText : speechText));
   };
 
-  if (projects.length === 0) {
+  // Zero-projects empty state — skipped whenever there's a guidance-board
+  // candidate to triage, so that queue (and its Promote action) is never
+  // hidden behind the "no locked projects" placeholder.
+  if (projects.length === 0 && pendingImprovementCandidates.length === 0) {
     return (
       <div className="card p-8 text-center space-y-4">
         <Briefcase className="w-12 h-12 text-mute mx-auto" />
@@ -529,6 +560,180 @@ export default function ProjectManagement({
       {!currentProject ? (
         /* Project Gallery — landing page: a gallery of projects to choose from */
         <div className="space-y-4">
+          {/* Improvement guidance board candidates — L1/L2 RICE triage queue */}
+          {pendingImprovementCandidates.length > 0 && (
+            <div className="card p-6 print:break-inside-avoid">
+              <h3 className="font-display font-semibold text-sm flex items-center gap-2">
+                <Target size={15} className="text-citron-deep" /> RICE triage — improvement guidance candidates
+              </h3>
+              <p className="text-xs text-mute mt-0.5">
+                {canTriageRice
+                  ? 'Items tracked by managers on the guidance board. Promote one to a Locked Project to score, rank, and start executing it.'
+                  : 'Items tracked by managers on the guidance board, awaiting L1/L2 review before becoming a Locked Project.'}
+              </p>
+              <ul className="mt-4 divide-y divide-line">
+                {pendingImprovementCandidates.map((item) => {
+                  const proc = catalogueProcesses.find((p) => p.id === item.processId);
+                  const preview = estimateRiceForProcess(proc, { title: item.processTitle });
+                  const previewScore = computeRiceScore(preview);
+                  return (
+                    <li key={item.id} className="py-3 flex flex-wrap items-center gap-3">
+                      <div className="flex-1 min-w-[220px]">
+                        <div className="text-sm font-medium truncate">{item.processTitle}</div>
+                        <div className="text-[11px] text-faint truncate">
+                          {item.ownerName} · {item.recommendedSolution} · {item.subFunction}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xs text-mute">Est. RICE score</span>
+                        <span className="font-display text-sm font-bold text-citron-deep">{formatRiceScoreValue(previewScore)}</span>
+                        <RiceInfoTooltip lines={preview.reasoning ?? []} autoEstimated />
+                      </div>
+                      {canTriageRice ? (
+                        <button
+                          onClick={() => onPromoteImprovementItem?.(item)}
+                          className="btn-dark !py-1.5 !px-3 !text-[11px] shrink-0"
+                        >
+                          <Plus size={11} /> Promote to Locked Project
+                        </button>
+                      ) : (
+                        <span className="chip !text-[10px] shrink-0">Awaiting L1/L2 review</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* RICE leaderboard — every Locked Project scored, ranked by priority */}
+          {riceLeaderboard.length > 0 && (
+            <div className="card p-6 print:break-inside-avoid">
+              <h3 className="font-display font-semibold text-sm flex items-center gap-2">
+                <Target size={15} className="text-citron-deep" /> RICE leaderboard
+              </h3>
+              <p className="text-[11px] text-mute mt-0.5">
+                (Reach × Impact × Confidence) ÷ Effort — every Locked Project with a RICE score, ranked by priority. Est. annual value:{' '}
+                <strong>{formatIDRCompact(riceLeaderboard.reduce((s, r) => s + riceAnnualSavingsIDR(r.project.rice), 0))}</strong>.
+              </p>
+              <ul className="mt-4 divide-y divide-line">
+                {riceLeaderboard.map(({ project, score }, i) => (
+                  <li key={project.id} className="py-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-xs font-bold text-faint w-5 shrink-0">{i + 1}</span>
+                      <button
+                        onClick={() => {
+                          setSelectedProjectId(project.id);
+                          setActiveSection('team');
+                        }}
+                        className="flex-1 min-w-[220px] text-left cursor-pointer"
+                      >
+                        <div className="text-sm font-medium truncate hover:text-veil-deep transition-colors">{project.title}</div>
+                        <div className="text-[11px] text-faint">
+                          Reach {project.rice.reach} · {formatRiceImpact(project.rice)} · {project.rice.confidence}% conf. · {project.rice.effort} wks effort
+                        </div>
+                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="font-display text-sm font-bold text-citron-deep">{formatRiceScoreValue(score)}</span>
+                        <RiceInfoTooltip lines={project.rice.reasoning ?? []} autoEstimated={project.rice.autoEstimated} />
+                        {canTriageRice && (
+                          <button
+                            onClick={() => {
+                              setRiceEditingProjectId(project.id);
+                              setRiceEditDraft(project.rice);
+                            }}
+                            className="btn-ghost !p-1.5"
+                            title="Edit RICE inputs"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {riceEditingProjectId === project.id && riceEditDraft && (
+                      <div className="mt-3 p-4 rounded-2xl border border-line bg-canvas grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <label className="text-[11px] text-mute space-y-1">
+                          Reach
+                          <input
+                            type="number"
+                            className="field !py-1.5 !text-xs w-full"
+                            value={riceEditDraft.reach}
+                            onChange={(e) => setRiceEditDraft({ ...riceEditDraft, reach: Number(e.target.value) })}
+                          />
+                        </label>
+                        <label className="text-[11px] text-mute space-y-1">
+                          Impact
+                          <input
+                            type="number"
+                            className="field !py-1.5 !text-xs w-full"
+                            value={riceEditDraft.impact}
+                            onChange={(e) => setRiceEditDraft({ ...riceEditDraft, impact: Number(e.target.value) })}
+                          />
+                        </label>
+                        <label className="text-[11px] text-mute space-y-1">
+                          Impact unit
+                          <select
+                            className="field !py-1.5 !text-xs w-full cursor-pointer"
+                            value={riceEditDraft.impactUnit}
+                            onChange={(e) => setRiceEditDraft({ ...riceEditDraft, impactUnit: e.target.value as RiceScore['impactUnit'] })}
+                          >
+                            <option value="hours_per_month">hrs/month</option>
+                            <option value="IDR">IDR (total/mo)</option>
+                          </select>
+                        </label>
+                        <label className="text-[11px] text-mute space-y-1">
+                          Confidence %
+                          <input
+                            type="number"
+                            className="field !py-1.5 !text-xs w-full"
+                            value={riceEditDraft.confidence}
+                            onChange={(e) => setRiceEditDraft({ ...riceEditDraft, confidence: Number(e.target.value) })}
+                          />
+                        </label>
+                        <label className="text-[11px] text-mute space-y-1">
+                          Effort (wks)
+                          <input
+                            type="number"
+                            className="field !py-1.5 !text-xs w-full"
+                            value={riceEditDraft.effort}
+                            onChange={(e) => setRiceEditDraft({ ...riceEditDraft, effort: Number(e.target.value) })}
+                          />
+                        </label>
+                        <div className="col-span-2 sm:col-span-4 flex items-center justify-end gap-2 pt-1">
+                          <button
+                            onClick={() => {
+                              setRiceEditingProjectId(null);
+                              setRiceEditDraft(null);
+                            }}
+                            className="btn-ghost !py-1.5 !px-3 !text-[11px]"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (!riceEditDraft) return;
+                              const reasoning = [
+                                ...(project.rice.reasoning ?? []).filter((l) => !l.startsWith('Auto-estimated') && !l.startsWith('Manually adjusted')),
+                                `Manually adjusted by ${profileName} on ${new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
+                              ];
+                              onUpdateProject({ ...project, rice: { ...riceEditDraft, reasoning, autoEstimated: false } });
+                              setRiceEditingProjectId(null);
+                              setRiceEditDraft(null);
+                            }}
+                            className="btn-dark !py-1.5 !px-3 !text-[11px]"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {hasOtherProjects && (
             <div className="flex items-center gap-1 p-1 bg-veil rounded-xl text-xs w-fit">
               <button
