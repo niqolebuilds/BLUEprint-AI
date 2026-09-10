@@ -38,7 +38,7 @@ import {
   INITIAL_GANTT_TASKS,
   INITIAL_PROJECT_OKRS,
 } from './data/projectData';
-import { uid } from './lib/utils';
+import { estimateRiceForProcess, uid } from './lib/utils';
 
 const STORAGE = {
   profile: 'bp_profile',
@@ -48,6 +48,7 @@ const STORAGE = {
   unlocked: 'bp_unlocked', // sessionStorage — cleared when the browser tab closes
   remoteToken: 'bp_remote_token', // sessionStorage — Postgres API session, only used when VITE_ENABLE_REMOTE_AUTH=true
   projects: 'bp_projects',
+  improvementItems: 'bp_improvement_items',
   teamMembers: 'bp_team_members',
   transcripts: 'bp_transcripts',
   meetingNotes: 'bp_meeting_notes',
@@ -118,7 +119,9 @@ export default function App() {
   const [availableSystems, setAvailableSystems] = useState<SystemItem[]>(() => loadJSON(STORAGE.systems, MOCK_SYSTEMS));
   const [notifications, setNotifications] = useState<UserNotification[]>(MOCK_NOTIFICATIONS);
   const [adminBroadcastLogs, setAdminBroadcastLogs] = useState<NotificationLog[]>(MOCK_NOTIFICATION_LOGS);
-  const [improvementItems, setImprovementItems] = useState<ImprovementItem[]>(MOCK_IMPROVEMENT_ITEMS);
+  const [improvementItems, setImprovementItems] = useState<ImprovementItem[]>(() =>
+    loadJSON(STORAGE.improvementItems, MOCK_IMPROVEMENT_ITEMS),
+  );
 
   // ---------- Project Management state ----------
   const [managedProjects, setManagedProjects] = useState<ManagedProject[]>(() => loadJSON(STORAGE.projects, INITIAL_MANAGED_PROJECTS));
@@ -139,6 +142,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE.projects, JSON.stringify(managedProjects));
   }, [managedProjects]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE.improvementItems, JSON.stringify(improvementItems));
+  }, [improvementItems]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE.teamMembers, JSON.stringify(teamMembers));
@@ -313,6 +320,56 @@ export default function App() {
 
   const handleUpdateImprovementItem = (updated: ImprovementItem) => {
     setImprovementItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+
+    // Linked items stay in sync one-way, guidance-board status → project stage,
+    // so an L3 marking work "Resolved" is reflected on the L1/L2 project view
+    // without them having to duplicate the update there.
+    if (updated.linkedProjectId) {
+      setManagedProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== updated.linkedProjectId) return p;
+          if (updated.status === 'Resolved' && p.stage !== '6: Realised Benefit') {
+            return { ...p, stage: '6: Realised Benefit', progressPercent: 100 };
+          }
+          if (updated.status === 'In Progress' && p.stage === '4: Locked Project') {
+            return { ...p, stage: '5: Tracked Execution' };
+          }
+          return p;
+        }),
+      );
+    }
+  };
+
+  // Promotes an Improvement guidance board candidate into a Locked Project
+  // (L1/L2 RICE triage): pulls the real owner off the underlying process and
+  // auto-estimates a RICE score from its capture ratings so the project
+  // arrives on the RICE leaderboard scored, not blank.
+  const handlePromoteImprovementItem = (item: ImprovementItem) => {
+    const proc = processes.find((p) => p.id === item.processId);
+    const rice = estimateRiceForProcess(proc, { title: item.processTitle });
+    const targetDate = new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0]!;
+
+    const newProj: ManagedProject = {
+      id: uid('proj'),
+      title: item.processTitle,
+      targetStatement: item.expectedImpact,
+      linkedProcessId: item.processId,
+      linkedEngineTitle: proc?.title,
+      ownerName: proc?.ownerName ?? item.ownerName,
+      ownerEmail: proc?.ownerEmail ?? '',
+      stage: '4: Locked Project',
+      progressPercent: 10,
+      targetDate,
+      rice,
+      sourceImprovementItemId: item.id,
+    };
+
+    setManagedProjects((prev) => [newProj, ...prev]);
+    setImprovementItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id ? { ...i, linkedProjectId: newProj.id, status: i.status === 'Identified' ? 'In Progress' : i.status } : i,
+      ),
+    );
   };
 
   // ---------- Project Management actions ----------
@@ -554,6 +611,7 @@ export default function App() {
         onTriggerAdminNotification={handleTriggerAdminNotification}
         onAddImprovementItem={handleAddImprovementItem}
         onUpdateImprovementItem={handleUpdateImprovementItem}
+        onPromoteImprovementItem={handlePromoteImprovementItem}
         projectsManaged={managedProjects}
         teamMembers={teamMembers}
         transcripts={transcripts}

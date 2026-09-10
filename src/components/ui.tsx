@@ -1,4 +1,5 @@
-import { ReactNode, useEffect, useRef, TextareaHTMLAttributes } from 'react';
+import { ReactNode, useEffect, useRef, useState, TextareaHTMLAttributes } from 'react';
+import { HelpCircle } from 'lucide-react';
 import { CLASSIFICATION_META, initials } from '../lib/utils';
 
 export function SectionLabel({ children }: { children: ReactNode }) {
@@ -60,6 +61,41 @@ export function Stat({
       <div className="text-xs font-semibold text-mute">{label}</div>
       <div className="font-display text-3xl font-semibold mt-1.5 tracking-tight">{value}</div>
       {hint && <div className="text-xs text-mute mt-1">{hint}</div>}
+    </div>
+  );
+}
+
+/** A (?) icon that reveals a RICE score's derivation on click — auto-estimated or manually edited. */
+export function RiceInfoTooltip({ lines, autoEstimated }: { lines: string[]; autoEstimated?: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (lines.length === 0) return null;
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        className="text-faint hover:text-ink transition-colors cursor-pointer"
+        aria-label="How this RICE score was calculated"
+        title="How this was calculated"
+      >
+        <HelpCircle size={13} />
+      </button>
+      {open && (
+        <div className="absolute z-20 right-0 top-full mt-1.5 w-64 card !p-3 shadow-lift text-left">
+          {autoEstimated === false && (
+            <div className="chip border-transparent bg-veil-soft text-veil-deep !text-[10px] mb-2">Manually edited</div>
+          )}
+          <ul className="space-y-1.5">
+            {lines.map((line, i) => (
+              <li key={i} className="text-[11px] text-mute leading-snug">{line}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
